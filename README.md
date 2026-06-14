@@ -203,6 +203,110 @@ with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
 The SDK backend is an adapter over a local official runtime. Its native
 libraries remain outside the public repository.
 
+## Backend API Coverage
+
+OpenSqray aims to provide an OpenSlide-like user experience for SDPC files, but
+the native backend is not yet equivalent to the official Sqray SDK or a full
+OpenSlide backend. Today there are two SDPC paths:
+
+* `backend="native"` is the public parser path. It has no proprietary runtime
+  dependency and is suitable for metadata inspection, associated-image
+  candidates, tile-index research, and preview-limited raw JPEG candidate
+  reads.
+* `backend="sdk"` is the opt-in official-runtime adapter. It is the current
+  reliable path for SDK-backed tile JPEG reads and BGRA region reads.
+
+| Capability | Native backend | SDK backend |
+| --- | --- | --- |
+| Metadata/properties | Supported | Supported, with SDK geometry available through `sdk-info` |
+| Level dimensions/downsamples | Inferred from parsed metadata | SDK-reported |
+| Associated images | Heuristic JPEG candidates | Not wrapped yet |
+| Tile JPEG by coordinate | Heuristic, preview-limited candidates | Supported through the SDK |
+| `read_region_bgra_bytes()` | Not implemented | Supported through the SDK |
+| `read_region()` | Raises `NotImplementedError` | Supported when Pillow is installed |
+| Color correction | Not implemented | SDK may support it, but OpenSqray does not wrap it yet |
+| Fluorescence/channels/focal planes | Not implemented | SDK may support them, but OpenSqray does not wrap them yet |
+| Full OpenSlide API parity | Not yet | Partial practical parity for tile and region reads |
+
+In short: native SDPC support is useful and public-safe, but it should not be
+treated as a production replacement for the official SDK's pixel APIs yet. Use
+the SDK backend when downstream code needs coordinate-accurate tile reads or
+OpenSlide-style region reads.
+
+## Quick API Tutorial
+
+Native metadata and candidate-tile workflow:
+
+```bash
+opensqray inspect path/to/slide.sdpc --compact
+opensqray tile-index path/to/slide.sdpc --preview-limit 30 --compact
+opensqray read-tile path/to/slide.sdpc \
+  --backend native \
+  --preview-limit 100 \
+  --level 0 --tile-x 0 --tile-y 0 \
+  --output tile-native.jpg
+```
+
+This path reads from candidate JPEG records discovered by the parser preview.
+It is useful for research and smoke checks, but it is not a full native
+`read_region()` implementation.
+
+SDK-backed workflow:
+
+```bash
+export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
+
+opensqray sdk-info path/to/slide.sdpc --compact
+opensqray read-tile path/to/slide.sdpc \
+  --backend sdk \
+  --level 0 --tile-x 0 --tile-y 0 \
+  --output tile-sdk.jpg
+```
+
+Python native metadata and candidate bytes:
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc") as slide:
+    print(slide.dimensions)
+    print(slide.level_dimensions)
+    print(slide.properties["opensqray.backend"])
+
+    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
+```
+
+Python SDK-backed tile and region reads:
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
+    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
+    region_bgra = slide.read_region_bgra_bytes((0, 0), 0, (512, 512))
+    region_image = slide.read_region((0, 0), 0, (512, 512))
+    region_image.save("region.png")
+```
+
+`read_region()` requires Pillow because OpenSqray converts the SDK's BGRA bytes
+to an RGBA image object.
+
+Example observed on one local ignored SDPC sample:
+
+```json
+{
+  "backend": "sqray_sdk",
+  "tile_size": {"width": 544, "height": 448},
+  "level_count": 7,
+  "level0_grid": {"columns": 92, "rows": 208}
+}
+```
+
+The same sample produced a level-0 tile JPEG for `(tile_x=0, tile_y=0)` with
+`19805` bytes through the SDK backend. Native candidate bytes matched this tile
+in the local research preview for that sample, but this remains validation
+evidence, not a guarantee of complete native API parity.
+
 ### SDPC Output Contract
 
 SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metadata.v1"`. The v1 contract keeps stable metadata fields separate from research diagnostics:
