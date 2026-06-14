@@ -27,7 +27,7 @@ The project is designed around explicit boundaries: parse what can be parsed nat
 
 ![OpenSqray API demo](docs/assets/opensqray-api-demo.svg)
 
-The visual above is synthetic and public-safe. It does not embed real slide pixels or restricted data. For a reproducible execution walkthrough, open [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb). The notebook creates a synthetic SDPC-like fixture and runs the OpenSqray parser, `SDPCSlide`, and CLI against it.
+The visual above is synthetic and public-safe. It does not embed real slide pixels or restricted data. For a reproducible real-file walkthrough, open [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb). The notebook reads local `data/20220514_145829_0.sdpc` by default, can be pointed at another SDPC file with `OPENSQRAY_TUTORIAL_SDPC=/path/to/file.sdpc`, and runs the OpenSqray parser, `SDPCSlide`, and CLI against it. The public repository does not distribute real slide files from `data/`; if you clone from GitHub, provide your own local SDPC file before running the notebook.
 
 ## Installation
 
@@ -228,6 +228,10 @@ Tests use synthetic fixtures and do not require real slide data or proprietary S
 ## Data and Security Boundary
 
 The public repository contains source code, synthetic test fixtures, and documentation only. It does not contain real slide samples, patient data, proprietary SDK binaries, or non-public implementation code. Configure a licensed SDK runtime in your own environment if you need the SDK backend.
+
+## Acknowledgements
+
+OpenSqray's SDPC research and engineering design references the public work of [OpenSDPC](https://github.com/WonderLandxD/opensdpc). OpenSqray does not copy or redistribute its code; format observations and implementation boundaries are kept explicit.
 
 ## License
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opensqray"
-version = "0.1.1"
+version = "0.1.2"
 description = "Public whole-slide image utilities with native SDPC metadata parsing and optional OpenSlide support."
 readme = "README.md"
 requires-python = ">=3.10"
