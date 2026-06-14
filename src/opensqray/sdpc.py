@@ -73,6 +73,10 @@ SDPC_FIELD_CONFIDENCE = {
     "jpeg_streams.records_preview": "diagnostic",
     "associated_images.count": "experimental",
     "associated_images.records": "experimental",
+    "tile_index.status": "experimental",
+    "tile_index.levels": "experimental",
+    "tile_index.tiles_preview": "experimental",
+    "tile_index.missing_tiles_preview": "experimental",
 }
 
 
@@ -100,6 +104,7 @@ class SDPCInfo:
     experimental: dict[str, object]
     jpeg_streams: dict[str, object]
     associated_images: dict[str, object]
+    tile_index: dict[str, object]
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serializable representation."""
@@ -132,6 +137,7 @@ class SDPCInfo:
             "experimental": self.experimental,
             "jpeg_streams": self.jpeg_streams,
             "associated_images": self.associated_images,
+            "tile_index": self.tile_index,
             "field_confidence": dict(SDPC_FIELD_CONFIDENCE),
             "validation": self._validation_report(),
         }
@@ -250,6 +256,14 @@ def read_sdpc(
         thumbnail_size=(thumbnail_width, thumbnail_height),
         preview_limited=bool(jpeg_streams["preview_limited"]),
     )
+    tile_index = _build_tile_index(
+        jpeg_streams["records_preview"],
+        dimensions=(width, height),
+        tile_size=(tile_width, tile_height),
+        level_count=level_count,
+        scan_complete=jpeg_streams["count"] is not None,
+        preview_limited=bool(jpeg_streams["preview_limited"]),
+    )
 
     return SDPCInfo(
         path=str(path),
@@ -271,6 +285,7 @@ def read_sdpc(
         },
         jpeg_streams=jpeg_streams,
         associated_images=associated_images,
+        tile_index=tile_index,
     )
 
 
@@ -451,8 +466,9 @@ def _scan_jpeg_records(
                     count += 1
                     if len(records) < max_offsets:
                         records.append(record)
-                    elif not count_all:
+                    else:
                         preview_limited = True
+                    if preview_limited and not count_all:
                         return _jpeg_stream_summary(records, None, preview_limited)
                 cursor = marker_at + 1
 
@@ -666,6 +682,237 @@ def _name_associated_candidates(
     return output
 
 
+def _build_tile_index(
+    records: list[dict[str, object]],
+    *,
+    dimensions: tuple[int, int],
+    tile_size: tuple[int, int],
+    level_count: int,
+    scan_complete: bool,
+    preview_limited: bool,
+) -> dict[str, object]:
+    levels = _expected_tile_levels(dimensions, tile_size, level_count)
+    tile_records, non_tile_after_start = _tile_sized_records(records, tile_size)
+    total_expected_tiles = sum(int(level["expected_tiles"]) for level in levels)
+
+    if not tile_records:
+        return {
+            "status": "unavailable",
+            "strategy": "sequential_tile_sized_jpeg_records_after_associated_candidates",
+            "confidence": "unavailable",
+            "levels": levels,
+            "tiles_preview": [],
+            "observed_tile_count": 0 if scan_complete and not preview_limited else None,
+            "expected_tile_count": total_expected_tiles,
+            "missing_tile_count": None,
+            "missing_tiles_preview": [],
+            "preview_limited": preview_limited,
+            "limitations": [
+                "No tile-sized JPEG record was found in the available preview.",
+                "The formal SDPC tile index table has not been mapped yet.",
+            ],
+        }
+
+    tiles_preview = [
+        _tile_preview_record(record, sequence_index, levels, tile_size)
+        for sequence_index, record in enumerate(tile_records)
+    ]
+    level_summaries = _summarize_tile_levels(levels, tiles_preview)
+    complete_preview = scan_complete and not preview_limited
+    missing_tile_count = None
+    missing_tiles_preview: list[dict[str, object]] = []
+    if complete_preview:
+        missing_tile_count = max(total_expected_tiles - len(tile_records), 0)
+        missing_tiles_preview = _missing_tile_preview(
+            start_sequence_index=len(tile_records),
+            levels=levels,
+            tile_size=tile_size,
+            max_items=20,
+        )
+
+    limitations = [
+        "Tile coordinates are row-major candidates inferred from sequential "
+        "tile-sized JPEG records.",
+        "The formal SDPC tile index table has not been mapped yet.",
+        "Sparse scans and non-standard ordering remain experimental.",
+    ]
+    if preview_limited:
+        limitations.append(
+            "JPEG record preview is limited; later tile records may not be shown."
+        )
+    if non_tile_after_start:
+        limitations.append(
+            "Non-tile-sized JPEG records were observed after the first tile-sized "
+            "record and were not mapped as tiles."
+        )
+
+    return {
+        "status": "candidate",
+        "strategy": "sequential_tile_sized_jpeg_records_after_associated_candidates",
+        "confidence": "heuristic",
+        "levels": level_summaries,
+        "tiles_preview": tiles_preview,
+        "observed_tile_count": len(tile_records) if complete_preview else None,
+        "expected_tile_count": total_expected_tiles,
+        "missing_tile_count": missing_tile_count,
+        "missing_tiles_preview": missing_tiles_preview,
+        "preview_limited": preview_limited,
+        "limitations": limitations,
+    }
+
+
+def _expected_tile_levels(
+    dimensions: tuple[int, int],
+    tile_size: tuple[int, int],
+    level_count: int,
+) -> list[dict[str, object]]:
+    levels: list[dict[str, object]] = []
+    for level in range(level_count):
+        scale = 2 ** level
+        width = _ceil_div(dimensions[0], scale)
+        height = _ceil_div(dimensions[1], scale)
+        columns = _ceil_div(width, tile_size[0])
+        rows = _ceil_div(height, tile_size[1])
+        expected_tiles = columns * rows
+        first_sequence_index = sum(
+            int(previous["expected_tiles"]) for previous in levels
+        )
+        levels.append(
+            {
+                "level": level,
+                "dimensions": {"width": width, "height": height},
+                "grid": {"columns": columns, "rows": rows},
+                "expected_tiles": expected_tiles,
+                "first_sequence_index": first_sequence_index,
+                "last_sequence_index": first_sequence_index + expected_tiles - 1,
+            }
+        )
+    return levels
+
+
+def _tile_sized_records(
+    records: list[dict[str, object]],
+    tile_size: tuple[int, int],
+) -> tuple[list[dict[str, object]], bool]:
+    tile_records: list[dict[str, object]] = []
+    found_first_tile = False
+    non_tile_after_start = False
+    for record in records:
+        dimensions = _record_dimensions(record)
+        if dimensions == tile_size:
+            found_first_tile = True
+            tile_records.append(record)
+            continue
+        if found_first_tile:
+            non_tile_after_start = True
+
+    return tile_records, non_tile_after_start
+
+
+def _tile_preview_record(
+    record: dict[str, object],
+    sequence_index: int,
+    levels: list[dict[str, object]],
+    tile_size: tuple[int, int],
+) -> dict[str, object]:
+    level, local_index = _locate_tile_sequence(sequence_index, levels)
+    grid = level["grid"]
+    columns = int(grid["columns"])
+    tile_x = local_index % columns
+    tile_y = local_index // columns
+    valid_size = _tile_valid_size(level, tile_x, tile_y, tile_size)
+    dimensions = record["dimensions"]
+    return {
+        "record_index": record["index"],
+        "sequence_index": sequence_index,
+        "level": level["level"],
+        "tile_x": tile_x,
+        "tile_y": tile_y,
+        "offset": record["offset"],
+        "length": record["length"],
+        "content_type": "image/jpeg",
+        "dimensions": dimensions,
+        "valid_size": valid_size,
+        "padded": valid_size != dimensions,
+        "confidence": "heuristic",
+    }
+
+
+def _locate_tile_sequence(
+    sequence_index: int,
+    levels: list[dict[str, object]],
+) -> tuple[dict[str, object], int]:
+    for level in levels:
+        first = int(level["first_sequence_index"])
+        last = int(level["last_sequence_index"])
+        if first <= sequence_index <= last:
+            return level, sequence_index - first
+    return levels[-1], sequence_index - int(levels[-1]["first_sequence_index"])
+
+
+def _tile_valid_size(
+    level: dict[str, object],
+    tile_x: int,
+    tile_y: int,
+    tile_size: tuple[int, int],
+) -> dict[str, int]:
+    dimensions = level["dimensions"]
+    width = int(dimensions["width"])
+    height = int(dimensions["height"])
+    valid_width = min(tile_size[0], max(width - tile_x * tile_size[0], 0))
+    valid_height = min(tile_size[1], max(height - tile_y * tile_size[1], 0))
+    return {"width": valid_width, "height": valid_height}
+
+
+def _summarize_tile_levels(
+    levels: list[dict[str, object]],
+    tiles_preview: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    output: list[dict[str, object]] = []
+    for level in levels:
+        preview_tiles = [
+            tile for tile in tiles_preview if tile["level"] == level["level"]
+        ]
+        item = dict(level)
+        item["preview_tile_count"] = len(preview_tiles)
+        item["preview_complete"] = len(preview_tiles) == level["expected_tiles"]
+        output.append(item)
+    return output
+
+
+def _missing_tile_preview(
+    *,
+    start_sequence_index: int,
+    levels: list[dict[str, object]],
+    tile_size: tuple[int, int],
+    max_items: int,
+) -> list[dict[str, object]]:
+    missing: list[dict[str, object]] = []
+    total_expected = sum(int(level["expected_tiles"]) for level in levels)
+    for sequence_index in range(start_sequence_index, total_expected):
+        level, local_index = _locate_tile_sequence(sequence_index, levels)
+        columns = int(level["grid"]["columns"])
+        tile_x = local_index % columns
+        tile_y = local_index // columns
+        missing.append(
+            {
+                "sequence_index": sequence_index,
+                "level": level["level"],
+                "tile_x": tile_x,
+                "tile_y": tile_y,
+                "valid_size": _tile_valid_size(
+                    level,
+                    tile_x,
+                    tile_y,
+                    tile_size,
+                ),
+            }
+        )
+        if len(missing) >= max_items:
+            break
+    return missing
+
+
 def _record_dimensions(record: dict[str, object]) -> tuple[int, int] | None:
     dimensions = record.get("dimensions")
     if not isinstance(dimensions, dict):
@@ -682,6 +929,12 @@ def _record_area(record: dict[str, object]) -> int:
     if dimensions is None:
         return 0
     return dimensions[0] * dimensions[1]
+
+
+def _ceil_div(value: int, divisor: int) -> int:
+    if divisor <= 0:
+        raise SDPCFormatError("SDPC tile dimensions must be positive")
+    return (value + divisor - 1) // divisor
 
 
 def _associated_image_filename(

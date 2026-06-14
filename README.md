@@ -6,7 +6,7 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 ## Status
 
-Alpha. Current SDPC support covers metadata inspection and heuristic associated-image JPEG candidate extraction. Pixel reads, region extraction, tile coordinate mapping, and color correction are planned but not claimed as supported yet.
+Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, and heuristic tile-grid candidate inspection. Pixel reads, region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
 
 ## Install
 
@@ -64,6 +64,16 @@ Associated-image role names such as `label_candidate` and `macro_candidate` are
 heuristic. They identify leading non-tile JPEG streams before the first
 tile-sized JPEG record; they are not yet formal SDPC directory entries.
 
+Inspect SDPC tile-grid candidates:
+
+```bash
+opensqray tile-index path/to/slide.sdpc
+```
+
+Tile coordinates are row-major candidates inferred from sequential tile-sized
+JPEG records. They are useful for format research but are not yet a confirmed
+SDPC tile index table.
+
 ### SDPC Output Contract
 
 SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metadata.v1"`. The v1 contract keeps stable metadata fields separate from research diagnostics:
@@ -72,6 +82,7 @@ SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metada
 * Metadata fields: `metadata.device_id`, `metadata.acquired_at`, `metadata.scanner_model`, `metadata.objective`, and `metadata.embedded_strings`.
 * Diagnostics: `experimental`, `jpeg_streams`, `field_confidence`, and `validation.warnings`.
 * Associated image candidates: `associated_images.count` and `associated_images.records`.
+* Tile-grid candidates: `tile_index.status`, `tile_index.levels`, `tile_index.tiles_preview`, and `tile_index.missing_tiles_preview`.
 
 `file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
 

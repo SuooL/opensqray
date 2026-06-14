@@ -36,10 +36,14 @@ default, and local smoke validation reports candidate summaries for ignored
 
 ## Phase 3: Tile Index Reconstruction
 
-* Locate and document tile index tables.
-* Map JPEG streams to pyramid levels and tile coordinates.
-* Add tests covering sparse and non-full-scan SDPC files.
-* Define explicit behavior for missing edge tiles and padded regions.
+* Infer expected pyramid-level grids from level-0 dimensions, tile size, and level count.
+* Map sequential tile-sized JPEG records to row-major candidate tile coordinates.
+* Define explicit candidate behavior for missing tiles, edge valid sizes, and preview-limited scans.
+* Keep formal SDPC tile-index table parsing as future work until the directory/index records are located.
+
+M3 is complete when `opensqray tile-index` exposes candidate levels and tile
+previews, synthetic tests cover row-major mapping and missing tile behavior, and
+local sample validation reports tile-index status without committing samples.
 
 ## Phase 4: Region Reads
 

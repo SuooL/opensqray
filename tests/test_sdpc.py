@@ -57,11 +57,15 @@ def make_sdpc_fixture(path: Path, *, stored_file_size: int | None = None) -> Non
 
     label = make_jpeg_fixture(992, 1040, b"label")
     macro = make_jpeg_fixture(1872, 1040, b"macro")
-    tile = make_jpeg_fixture(672, 672, b"tile")
+    tile_0 = make_jpeg_fixture(672, 672, b"tile0")
+    tile_1 = make_jpeg_fixture(672, 672, b"tile1")
+    tile_2 = make_jpeg_fixture(672, 672, b"tile2")
     data[7855:7855 + len(label)] = label
     data[8000:8000 + len(macro)] = macro
-    data[8200:8200 + len(tile)] = tile
-    data[8500:8504] = b"\xff\xd8\xffn"
+    data[8200:8200 + len(tile_0)] = tile_0
+    data[8300:8300 + len(tile_1)] = tile_1
+    data[8400:8400 + len(tile_2)] = tile_2
+    data[8600:8604] = b"\xff\xd8\xffn"
 
     path.write_bytes(data)
 
@@ -87,8 +91,11 @@ class SDPCParserTests(unittest.TestCase):
         self.assertEqual(info.metadata["acquired_at"], "2022/5/14 14:58:34")
         self.assertEqual(info.metadata["scanner_model"], "SQS120P-20220006")
         self.assertEqual(info.metadata["objective"], "UPlanApo40X")
-        self.assertEqual(info.jpeg_streams["offsets_preview"], [7855, 8000, 8200])
-        self.assertEqual(info.jpeg_streams["count"], 3)
+        self.assertEqual(
+            info.jpeg_streams["offsets_preview"],
+            [7855, 8000, 8200, 8300, 8400],
+        )
+        self.assertEqual(info.jpeg_streams["count"], 5)
         self.assertEqual(
             info.jpeg_streams["records_preview"][0]["dimensions"],
             {"width": 992, "height": 1040},
@@ -98,6 +105,19 @@ class SDPCParserTests(unittest.TestCase):
             [record["name"] for record in info.associated_images["records"]],
             ["label_candidate", "macro_candidate"],
         )
+        self.assertEqual(info.tile_index["status"], "candidate")
+        self.assertEqual(
+            [
+                (tile["level"], tile["tile_x"], tile["tile_y"])
+                for tile in info.tile_index["tiles_preview"]
+            ],
+            [(0, 0, 0), (0, 1, 0), (0, 2, 0)],
+        )
+        self.assertEqual(
+            info.tile_index["levels"][0]["grid"],
+            {"columns": 40, "rows": 32},
+        )
+        self.assertEqual(info.tile_index["missing_tiles_preview"][0]["tile_x"], 3)
 
         payload = info.to_dict()
         self.assertEqual(payload["schema_version"], SDPC_METADATA_SCHEMA_VERSION)
@@ -111,8 +131,8 @@ class SDPCParserTests(unittest.TestCase):
 
             info = read_sdpc(path, scan_jpegs=True)
 
-        self.assertEqual(info.jpeg_streams["count"], 3)
-        self.assertNotIn(8500, info.jpeg_streams["offsets_preview"])
+        self.assertEqual(info.jpeg_streams["count"], 5)
+        self.assertNotIn(8600, info.jpeg_streams["offsets_preview"])
 
     def test_reports_file_size_mismatch_as_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -163,6 +183,7 @@ class SDPCParserTests(unittest.TestCase):
         self.assertIn("field_confidence", payload)
         self.assertIn("validation", payload)
         self.assertEqual(payload["associated_images"]["count"], 2)
+        self.assertEqual(payload["tile_index"]["status"], "candidate")
 
     def test_extracts_associated_images_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -219,6 +240,24 @@ class SDPCParserTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["extracted_count"], 2)
             self.assertTrue(Path(payload["extracted"][0]["output_path"]).exists())
+
+    def test_cli_lists_tile_index_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(["tile-index", str(path), "--compact"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "candidate")
+        self.assertEqual(payload["tiles_preview"][1]["tile_x"], 1)
+        self.assertEqual(payload["tiles_preview"][1]["tile_y"], 0)
+        self.assertEqual(payload["missing_tile_count"], 1697)
 
 
 if __name__ == "__main__":
