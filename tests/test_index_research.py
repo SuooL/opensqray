@@ -17,10 +17,22 @@ from opensqray.cli import main as cli_main
 from synthetic_sdpc import make_sdpc_fixture
 
 
-def write_uint32_offset_table(path: Path, offset: int, values: list[int]) -> None:
+def write_uint32_offset_table(
+    path: Path,
+    offset: int,
+    values: list[int],
+    *,
+    before: bytes = b"",
+    after: bytes = b"",
+) -> None:
     with path.open("r+b") as handle:
+        if before:
+            handle.seek(offset - len(before))
+            handle.write(before)
         handle.seek(offset)
         handle.write(b"".join(struct.pack("<I", value) for value in values))
+        if after:
+            handle.write(after)
 
 
 class SDPCIndexResearchTests(unittest.TestCase):
@@ -28,9 +40,15 @@ class SDPCIndexResearchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "sample.sdpc"
             make_sdpc_fixture(path)
-            write_uint32_offset_table(path, 7200, [8200, 8300, 8400])
+            write_uint32_offset_table(
+                path,
+                7200,
+                [8200, 8300, 8400],
+                before=b"ABCD",
+                after=b"WXYZ",
+            )
 
-            payload = scan_sdpc_index_research(path)
+            payload = scan_sdpc_index_research(path, context_bytes=4)
 
         self.assertEqual(
             payload["schema_version"],
@@ -46,10 +64,22 @@ class SDPCIndexResearchTests(unittest.TestCase):
         self.assertEqual(candidate["target"], "offset")
         self.assertEqual(candidate["encoding"], "uint32le")
         self.assertEqual(candidate["window"], "before_first_jpeg")
+        self.assertEqual(candidate["window_relative_offset"], 7200)
         self.assertEqual(candidate["offset"], 7200)
+        self.assertEqual(candidate["end_offset"], 7212)
         self.assertEqual(candidate["match_count"], 3)
         self.assertEqual(candidate["start_record_index"], 2)
         self.assertEqual(candidate["end_record_index"], 4)
+        self.assertEqual(candidate["distance_to_window_end"], 643)
+        self.assertEqual(
+            candidate["context"],
+            {
+                "bytes_before": 4,
+                "before_hex": b"ABCD".hex(),
+                "bytes_after": 4,
+                "after_hex": b"WXYZ".hex(),
+            },
+        )
         self.assertEqual(candidate["values_preview"], [8200, 8300, 8400])
         self.assertEqual(candidate["confidence"], "diagnostic")
 
@@ -98,12 +128,35 @@ class SDPCIndexResearchTests(unittest.TestCase):
                         str(path),
                         "--min-table-matches",
                         "0",
+                        "--context-bytes",
+                        "16",
                     ]
                 )
 
         self.assertEqual(exit_code, 2)
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("--min-table-matches must be positive", stderr.getvalue())
+
+    def test_cli_rejects_negative_context_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(
+                    [
+                        "index-research",
+                        str(path),
+                        "--context-bytes",
+                        "-1",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("--context-bytes must be non-negative", stderr.getvalue())
 
 
 if __name__ == "__main__":

@@ -76,6 +76,8 @@ works without installing Pillow.
 
 * Add diagnostics for locating SDPC index-like tables by matching packed JPEG
   record offsets, end offsets, and lengths in non-JPEG byte windows.
+* Add candidate table context fields so runs can be inspected in their
+  surrounding binary structure.
 * Keep diagnostic candidate tables separate from the stable metadata contract.
 * Use ignored local samples to compare whether candidate evidence generalizes
   across SDPC versions.

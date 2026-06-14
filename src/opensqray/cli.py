@@ -140,6 +140,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="minimum consecutive packed values required for a candidate",
     )
     research_parser.add_argument(
+        "--context-bytes",
+        type=int,
+        default=16,
+        help="bytes of hex context to include before and after each candidate",
+    )
+    research_parser.add_argument(
         "--compact",
         action="store_true",
         help="emit compact JSON",
@@ -271,6 +277,9 @@ def _index_research(args: argparse.Namespace) -> int:
     if args.min_table_matches <= 0:
         print("opensqray: --min-table-matches must be positive", file=sys.stderr)
         return 2
+    if args.context_bytes < 0:
+        print("opensqray: --context-bytes must be non-negative", file=sys.stderr)
+        return 2
 
     try:
         payload = scan_sdpc_index_research(
@@ -279,6 +288,7 @@ def _index_research(args: argparse.Namespace) -> int:
             jpeg_preview_limit=args.preview_limit,
             max_window_bytes=args.max_window_bytes,
             min_table_matches=args.min_table_matches,
+            context_bytes=args.context_bytes,
         )
     except (SDPCFormatError, OSError, ValueError) as exc:
         print(f"opensqray: {exc}", file=sys.stderr)
