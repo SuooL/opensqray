@@ -27,7 +27,15 @@ The project is designed around explicit boundaries: parse what can be parsed nat
 
 ![OpenSqray API demo](docs/assets/opensqray-api-demo.svg)
 
-The visual above is synthetic and public-safe. It does not embed real slide pixels or restricted data. For a reproducible real-file walkthrough, open [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb). The notebook reads local `data/20220514_145829_0.sdpc` by default, can be pointed at another SDPC file with `OPENSQRAY_TUTORIAL_SDPC=/path/to/file.sdpc`, and runs the OpenSqray parser, `SDPCSlide`, and CLI against it. The public repository does not distribute real slide files from `data/`; if you clone from GitHub, provide your own local SDPC file before running the notebook.
+The visual above is a synthetic, public-safe flow diagram showing the typical OpenSqray path: native parsing for metadata and candidate-resource research, and the SDK backend for coordinate-accurate tile/region reads.
+
+The images below are real associated-image exports from the public SDPC sample `20220514_145829_0.sdpc`, generated directly with `opensqray extract-associated`. Candidate names remain heuristic and do not imply confirmed official SDPC directory entries.
+
+| `label_candidate` | `macro_candidate` |
+| --- | --- |
+| <img src="docs/assets/20220514_145829_0-0000-label_candidate.jpg" alt="Real SDPC label candidate" width="280"> | <img src="docs/assets/20220514_145829_0-0001-macro_candidate.jpg" alt="Real SDPC macro candidate" width="520"> |
+
+For a reproducible real-file walkthrough, open [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb). The notebook reads local `data/20220514_145829_0.sdpc` by default, can be pointed at another SDPC file with `OPENSQRAY_TUTORIAL_SDPC=/path/to/file.sdpc`, and runs the OpenSqray parser, `SDPCSlide`, and CLI against it. The public repository does not distribute real slide files from `data/`; if you clone from GitHub, provide your own local SDPC file before running the notebook.
 
 ## Installation
 
@@ -227,7 +235,7 @@ Tests use synthetic fixtures and do not require real slide data or proprietary S
 
 ## Data and Security Boundary
 
-The public repository contains source code, synthetic test fixtures, and documentation only. It does not contain real slide samples, patient data, proprietary SDK binaries, or non-public implementation code. Configure a licensed SDK runtime in your own environment if you need the SDK backend.
+The public repository contains source code, synthetic test fixtures, documentation, and lightweight preview images extracted from a public SDPC sample. It does not contain complete real slide files, patient-identifiable data, proprietary SDK binaries, or non-public implementation code. Configure a licensed SDK runtime in your own environment if you need the SDK backend.
 
 ## Acknowledgements
 
