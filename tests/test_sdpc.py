@@ -12,12 +12,25 @@ from opensqray.cli import main as cli_main
 from opensqray.sdpc import (
     SDPC_METADATA_SCHEMA_VERSION,
     SDPCFormatError,
+    extract_sdpc_associated_images,
     read_sdpc,
 )
 
 
+def make_jpeg_fixture(width: int, height: int, payload: bytes) -> bytes:
+    sof0 = (
+        b"\xff\xc0"
+        + struct.pack(">H", 17)
+        + b"\x08"
+        + struct.pack(">HH", height, width)
+        + b"\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00"
+    )
+    sos = b"\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00"
+    return b"\xff\xd8" + sof0 + sos + payload + b"\xff\xd9"
+
+
 def make_sdpc_fixture(path: Path, *, stored_file_size: int | None = None) -> None:
-    data = bytearray(9000)
+    data = bytearray(12000)
     data[:12] = b"SQ1.1.9.0430"
     struct.pack_into("<I", data, 0x12, 156)
     struct.pack_into("<I", data, 0x16, stored_file_size or len(data))
@@ -41,7 +54,14 @@ def make_sdpc_fixture(path: Path, *, stored_file_size: int | None = None) -> Non
         b"UPlanApo40X\x00"
     )
     data[0x1B34:0x1B34 + len(metadata)] = metadata
-    data[7855:7858] = b"\xff\xd8\xff"
+
+    label = make_jpeg_fixture(992, 1040, b"label")
+    macro = make_jpeg_fixture(1872, 1040, b"macro")
+    tile = make_jpeg_fixture(672, 672, b"tile")
+    data[7855:7855 + len(label)] = label
+    data[8000:8000 + len(macro)] = macro
+    data[8200:8200 + len(tile)] = tile
+    data[8500:8504] = b"\xff\xd8\xffn"
 
     path.write_bytes(data)
 
@@ -55,7 +75,7 @@ class SDPCParserTests(unittest.TestCase):
             info = read_sdpc(path)
 
         self.assertEqual(info.version, "SQ1.1.9.0430")
-        self.assertEqual(info.file_size, 9000)
+        self.assertEqual(info.file_size, 12000)
         self.assertTrue(info.file_size_matches_header)
         self.assertEqual(info.header_size, 156)
         self.assertEqual(info.level_count, 4)
@@ -67,21 +87,32 @@ class SDPCParserTests(unittest.TestCase):
         self.assertEqual(info.metadata["acquired_at"], "2022/5/14 14:58:34")
         self.assertEqual(info.metadata["scanner_model"], "SQS120P-20220006")
         self.assertEqual(info.metadata["objective"], "UPlanApo40X")
-        self.assertEqual(info.jpeg_streams["offsets_preview"], [7855])
+        self.assertEqual(info.jpeg_streams["offsets_preview"], [7855, 8000, 8200])
+        self.assertEqual(info.jpeg_streams["count"], 3)
+        self.assertEqual(
+            info.jpeg_streams["records_preview"][0]["dimensions"],
+            {"width": 992, "height": 1040},
+        )
+        self.assertEqual(info.associated_images["count"], 2)
+        self.assertEqual(
+            [record["name"] for record in info.associated_images["records"]],
+            ["label_candidate", "macro_candidate"],
+        )
 
         payload = info.to_dict()
         self.assertEqual(payload["schema_version"], SDPC_METADATA_SCHEMA_VERSION)
         self.assertEqual(payload["field_confidence"]["dimensions"], "high")
         self.assertEqual(payload["validation"]["warnings"], [])
 
-    def test_counts_jpeg_markers_when_requested(self) -> None:
+    def test_counts_jpeg_records_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "sample.sdpc"
             make_sdpc_fixture(path)
 
             info = read_sdpc(path, scan_jpegs=True)
 
-        self.assertEqual(info.jpeg_streams["count"], 1)
+        self.assertEqual(info.jpeg_streams["count"], 3)
+        self.assertNotIn(8500, info.jpeg_streams["offsets_preview"])
 
     def test_reports_file_size_mismatch_as_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -100,7 +131,7 @@ class SDPCParserTests(unittest.TestCase):
                         "stored_file_size does not match the actual file size"
                     ),
                     "stored_file_size": 8999,
-                    "actual_file_size": 9000,
+                    "actual_file_size": 12000,
                 }
             ],
         )
@@ -131,6 +162,63 @@ class SDPCParserTests(unittest.TestCase):
         self.assertEqual(payload["dimensions"], {"height": 21504, "width": 26880})
         self.assertIn("field_confidence", payload)
         self.assertIn("validation", payload)
+        self.assertEqual(payload["associated_images"]["count"], 2)
+
+    def test_extracts_associated_images_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            output_dir = Path(tmp_dir) / "associated"
+            make_sdpc_fixture(path)
+
+            extracted = extract_sdpc_associated_images(path, output_dir)
+
+            self.assertEqual(len(extracted), 2)
+            first = Path(extracted[0]["output_path"])
+            self.assertTrue(first.exists())
+            self.assertEqual(first.read_bytes(), make_jpeg_fixture(992, 1040, b"label"))
+            with self.assertRaises(FileExistsError):
+                extract_sdpc_associated_images(path, output_dir)
+
+    def test_cli_lists_associated_images(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(["associated", str(path), "--compact"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["records"][1]["name"], "macro_candidate")
+
+    def test_cli_extracts_associated_images(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            output_dir = Path(tmp_dir) / "associated"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(
+                    [
+                        "extract-associated",
+                        str(path),
+                        "--output-dir",
+                        str(output_dir),
+                        "--compact",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["extracted_count"], 2)
+            self.assertTrue(Path(payload["extracted"][0]["output_path"]).exists())
 
 
 if __name__ == "__main__":

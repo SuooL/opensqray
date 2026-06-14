@@ -6,7 +6,7 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 ## Status
 
-Alpha. Current SDPC support is metadata-only and format-research oriented. Pixel reads, region extraction, tile coordinate mapping, and color correction are planned but not claimed as supported yet.
+Alpha. Current SDPC support covers metadata inspection and heuristic associated-image JPEG candidate extraction. Pixel reads, region extraction, tile coordinate mapping, and color correction are planned but not claimed as supported yet.
 
 ## Install
 
@@ -34,7 +34,7 @@ Inspect an SDPC file:
 opensqray inspect path/to/slide.sdpc
 ```
 
-Include a full JPEG marker scan:
+Include a full valid-JPEG-record scan:
 
 ```bash
 opensqray inspect path/to/slide.sdpc --scan-jpegs
@@ -48,6 +48,22 @@ opensqray inspect path/to/slide.svs
 
 If OpenSlide is unavailable, the CLI exits with a clear dependency message instead of trying to parse SVS itself.
 
+List SDPC associated-image candidates:
+
+```bash
+opensqray associated path/to/slide.sdpc
+```
+
+Extract associated-image JPEG candidates without overwriting existing files:
+
+```bash
+opensqray extract-associated path/to/slide.sdpc --output-dir associated-images
+```
+
+Associated-image role names such as `label_candidate` and `macro_candidate` are
+heuristic. They identify leading non-tile JPEG streams before the first
+tile-sized JPEG record; they are not yet formal SDPC directory entries.
+
 ### SDPC Output Contract
 
 SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metadata.v1"`. The v1 contract keeps stable metadata fields separate from research diagnostics:
@@ -55,6 +71,7 @@ SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metada
 * Stable fields: `version`, `file_size`, `stored_file_size`, `file_size_matches_header`, `header_size`, `level_count`, `dimensions`, `tile_size`, `thumbnail_size`, `scan_magnification`, and `metadata_offset`.
 * Metadata fields: `metadata.device_id`, `metadata.acquired_at`, `metadata.scanner_model`, `metadata.objective`, and `metadata.embedded_strings`.
 * Diagnostics: `experimental`, `jpeg_streams`, `field_confidence`, and `validation.warnings`.
+* Associated image candidates: `associated_images.count` and `associated_images.records`.
 
 `file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
 
@@ -74,7 +91,7 @@ To validate ignored local SDPC samples under `data/` without copying or committi
 python3 tools/validate_local_samples.py --compact
 ```
 
-Use `--scan-jpegs` only when you need a full JPEG marker count for local research.
+Use `--scan-jpegs` only when you need a full valid-JPEG-record count for local research.
 
 ## Git Flow
 

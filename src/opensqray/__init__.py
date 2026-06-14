@@ -5,6 +5,7 @@ from .sdpc import (
     SDPC_METADATA_SCHEMA_VERSION,
     SDPCFormatError,
     SDPCInfo,
+    extract_sdpc_associated_images,
     read_sdpc,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "SDPC_METADATA_SCHEMA_VERSION",
     "SDPCFormatError",
     "SDPCInfo",
+    "extract_sdpc_associated_images",
     "read_sdpc",
 ]

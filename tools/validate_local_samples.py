@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--scan-jpegs",
         action="store_true",
-        help="scan full files for JPEG marker counts",
+        help="scan full files for valid embedded JPEG record counts",
     )
     parser.add_argument(
         "--compact",
@@ -100,6 +100,13 @@ def _summarize_payload(payload: dict[str, Any]) -> dict[str, Any]:
             if metadata.get(key)
         ],
         "jpeg_streams": payload["jpeg_streams"],
+        "associated_images": {
+            "count": payload["associated_images"]["count"],
+            "names": [
+                record["name"]
+                for record in payload["associated_images"]["records"]
+            ],
+        },
         "warnings": payload["validation"]["warnings"],
     }
 
