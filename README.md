@@ -92,9 +92,10 @@ opensqray index-research path/to/slide.sdpc
 
 `index-research` scans non-JPEG byte windows before or between previewed JPEG
 records for packed integer runs matching known JPEG offsets, end offsets, or
-lengths. It also reports table position and small before/after hex context for
-each candidate. Matches are diagnostic evidence for reverse engineering; they
-are not reported as a parsed SDPC tile directory.
+lengths. It also reports table position, small before/after hex context, and
+for length-table candidates a cumulative offset reconstruction check. Matches
+are diagnostic evidence for reverse engineering; they are not reported as a
+parsed SDPC tile directory.
 
 ## Python API
 
@@ -144,7 +145,7 @@ SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metada
 * Tile-grid candidates: `tile_index.status`, `tile_index.levels`, `tile_index.tiles_preview`, and `tile_index.missing_tiles_preview`.
 
 The index research diagnostic emits
-`schema_version="opensqray.sdpc.index_research.v2"` and is intentionally
+`schema_version="opensqray.sdpc.index_research.v3"` and is intentionally
 separate from the stable metadata contract.
 
 `file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
