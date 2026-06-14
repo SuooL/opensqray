@@ -40,6 +40,7 @@ class SDPCSlideTests(unittest.TestCase):
             SDPC_METADATA_SCHEMA_VERSION,
         )
         self.assertEqual(properties["opensqray.sdpc.version"], "SQ1.1.9.0430")
+        self.assertEqual(properties["opensqray.backend"], "native")
         self.assertEqual(
             properties["opensqray.sdpc.metadata.scanner_model"],
             "SQS120P-20220006",
@@ -134,6 +135,52 @@ class SDPCSlideTests(unittest.TestCase):
 
             with self.assertRaisesRegex(NotImplementedError, "not implemented"):
                 slide.read_region((0, 0), 0, (256, 256))
+
+    def test_sdk_backend_reads_tile_and_region_through_sdk(self) -> None:
+        class FakeSDKSlide:
+            def __init__(self, path, *, sdk_dir=None, lib_dir=None):
+                self.path = path
+                self.closed = False
+
+            def close(self) -> None:
+                self.closed = True
+
+            def read_tile_jpeg_bytes(self, *, level, tile_x, tile_y):
+                return f"tile:{level}:{tile_x}:{tile_y}".encode("ascii")
+
+            def read_region_bgra_bytes(self, *, location, level, size):
+                self.region_request = (location, level, size)
+                return bytes(range(size[0] * size[1] * 4))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+
+            with patch("opensqray.slide.SqraySDKSlide", FakeSDKSlide), patch(
+                "opensqray.slide.image_from_bgra_bytes",
+                return_value="image",
+            ) as image_from_bgra:
+                slide = SDPCSlide(path, backend="sdk")
+                tile = slide.read_tile_jpeg_bytes(level=2, tile_x=9, tile_y=8)
+                region_bgra = slide.read_region_bgra_bytes((4, 5), 1, (2, 2))
+                region_image = slide.read_region((4, 5), 1, (2, 2))
+                properties = slide.properties
+                slide.close()
+
+        self.assertEqual(tile, b"tile:2:9:8")
+        self.assertEqual(region_bgra, bytes(range(16)))
+        image_from_bgra.assert_called_once_with(bytes(range(16)), (2, 2))
+        self.assertEqual(region_image, "image")
+        self.assertEqual(properties["opensqray.backend"], "sdk")
+        self.assertTrue(slide._sdk_slide.closed)
+
+    def test_rejects_unknown_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+
+            with self.assertRaisesRegex(ValueError, "backend"):
+                SDPCSlide(path, backend="unknown")
 
     def test_closed_slide_rejects_access(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

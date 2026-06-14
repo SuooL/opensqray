@@ -1,14 +1,15 @@
 """OpenSlide-like SDPC slide facade.
 
-The facade exposes stable metadata and raw JPEG candidate bytes without
-claiming decoded pixel or region-read support.
+The facade exposes stable metadata and raw JPEG candidate bytes. When the
+optional Sqray SDK backend is explicitly enabled, it can also delegate tile and
+region reads to the vendor runtime.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from .image_adapter import decode_jpeg_bytes
+from .image_adapter import decode_jpeg_bytes, image_from_bgra_bytes
 from .sdpc import (
     SDPC_METADATA_SCHEMA_VERSION,
     SDPCFormatError,
@@ -16,13 +17,15 @@ from .sdpc import (
     read_sdpc,
     read_sdpc_byte_range,
 )
+from .sdk_backend import SqraySDKSlide
 
 
 class SDPCSlide:
     """OpenSlide-like facade for SDPC metadata and candidate JPEG bytes.
 
-    Tile coordinates and associated-image role names remain heuristic until the
-    formal SDPC directory and tile-index records are mapped.
+    The default ``native`` backend exposes heuristic tile candidates. The
+    optional ``sdk`` backend delegates tile/region reads to a locally configured
+    Sqray SDK runtime.
     """
 
     def __init__(
@@ -31,21 +34,34 @@ class SDPCSlide:
         *,
         scan_jpegs: bool = False,
         jpeg_preview_limit: int = 50,
+        backend: str = "native",
+        sdk_dir: str | Path | None = None,
+        sdk_lib_dir: str | Path | None = None,
     ) -> None:
         if jpeg_preview_limit <= 0:
             raise ValueError("jpeg_preview_limit must be positive")
+        if backend not in {"native", "sdk"}:
+            raise ValueError("backend must be 'native' or 'sdk'")
 
         self._path = Path(path)
+        self._backend_name = backend
         self._info = read_sdpc(
             self._path,
             scan_jpegs=scan_jpegs,
             jpeg_preview_limit=jpeg_preview_limit,
+        )
+        self._sdk_slide = (
+            SqraySDKSlide(self._path, sdk_dir=sdk_dir, lib_dir=sdk_lib_dir)
+            if backend == "sdk"
+            else None
         )
         self._closed = False
 
     def close(self) -> None:
         """Mark this facade closed."""
 
+        if self._sdk_slide is not None:
+            self._sdk_slide.close()
         self._closed = True
 
     def __enter__(self) -> SDPCSlide:
@@ -102,7 +118,9 @@ class SDPCSlide:
         """Return OpenSlide-style string properties for stable SDPC metadata."""
 
         self._require_open()
-        return _slide_properties(self._info)
+        properties = _slide_properties(self._info)
+        properties["opensqray.backend"] = self._backend_name
+        return properties
 
     @property
     def associated_images(self) -> dict[str, dict[str, object]]:
@@ -133,9 +151,16 @@ class SDPCSlide:
         return decode_jpeg_bytes(self.read_associated_image_bytes(name))
 
     def read_tile_jpeg_bytes(self, *, level: int, tile_x: int, tile_y: int) -> bytes:
-        """Return raw JPEG bytes for a tile candidate in the current preview."""
+        """Return raw JPEG bytes for a tile coordinate."""
 
         self._require_open()
+        if self._sdk_slide is not None:
+            return self._sdk_slide.read_tile_jpeg_bytes(
+                level=level,
+                tile_x=tile_x,
+                tile_y=tile_y,
+            )
+
         for record in _tile_records(self._info):
             if (
                 record.get("level") == level
@@ -182,10 +207,29 @@ class SDPCSlide:
         level: int,
         size: tuple[int, int],
     ) -> object:
-        """Region decoding is intentionally unsupported for SDPC for now."""
+        """Return an RGBA Pillow image for a region when SDK backend is active."""
+
+        return image_from_bgra_bytes(
+            self.read_region_bgra_bytes(location, level, size),
+            size,
+        )
+
+    def read_region_bgra_bytes(
+        self,
+        location: tuple[int, int],
+        level: int,
+        size: tuple[int, int],
+    ) -> bytes:
+        """Return BGRA bytes for a region when SDK backend is active."""
 
         self._require_open()
-        _ = location, level, size
+        if self._sdk_slide is not None:
+            return self._sdk_slide.read_region_bgra_bytes(
+                location=location,
+                level=level,
+                size=size,
+            )
+
         raise NotImplementedError(
             "SDPCSlide.read_region is not implemented yet; tile coordinates "
             "remain heuristic until the formal SDPC tile-index table is mapped"

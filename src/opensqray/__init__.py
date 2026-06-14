@@ -1,6 +1,10 @@
 """OpenSqray public APIs."""
 
-from .image_adapter import ImageDecodeUnavailable, decode_jpeg_bytes
+from .image_adapter import (
+    ImageDecodeUnavailable,
+    decode_jpeg_bytes,
+    image_from_bgra_bytes,
+)
 from .index_research import (
     SDPC_INDEX_RESEARCH_SCHEMA_VERSION,
     scan_sdpc_index_research,
@@ -14,6 +18,7 @@ from .sdpc import (
     read_sdpc,
     read_sdpc_byte_range,
 )
+from .sdk_backend import SqraySDKError, SqraySDKSlide, SqraySDKUnavailable
 from .slide import SDPCSlide
 
 __all__ = [
@@ -24,7 +29,11 @@ __all__ = [
     "SDPCFormatError",
     "SDPCInfo",
     "SDPCSlide",
+    "SqraySDKError",
+    "SqraySDKSlide",
+    "SqraySDKUnavailable",
     "decode_jpeg_bytes",
+    "image_from_bgra_bytes",
     "extract_sdpc_associated_images",
     "read_sdpc",
     "read_sdpc_byte_range",
