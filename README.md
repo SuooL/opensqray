@@ -29,7 +29,7 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 
 上图是公开安全的合成示意图，不包含真实切片像素或受限数据。它展示的是 OpenSqray 的典型调用路径：原生解析用于元数据与候选资源研究，SDK 后端用于坐标准确的 tile/region 读取。
 
-想看可复现的执行过程，可以打开 [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb)。该 notebook 会生成 synthetic SDPC-like fixture，并实际运行 OpenSqray parser、`SDPCSlide` 和 CLI。
+想看可复现的真实文件执行过程，可以打开 [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb)。该 notebook 默认读取本地 `data/20220514_145829_0.sdpc`，也可以通过 `OPENSQRAY_TUTORIAL_SDPC=/path/to/file.sdpc` 指向其他 SDPC 文件，并实际运行 OpenSqray parser、`SDPCSlide` 和 CLI。公开仓库不分发 `data/` 中的真实切片文件；如果你从 GitHub 克隆项目，需要在本地提供自己的 SDPC 文件后再运行 notebook。
 
 ## 安装
 
@@ -230,6 +230,10 @@ python3 -m unittest discover -s tests
 ## 安全与数据边界
 
 OpenSqray 仓库只保存公开源码、测试 fixture 和文档，不包含真实切片样本、患者数据、专有 SDK 二进制文件或非公开实现。需要 SDK 后端时，请在自己的运行环境中配置合法 SDK runtime。
+
+## 致谢
+
+OpenSqray 的 SDPC 研究与工程设计参考了 [OpenSDPC](https://github.com/WonderLandxD/opensdpc) 的公开工作。OpenSqray 不复制或再分发其代码；相关格式理解会保持来源边界和实现边界清晰。
 
 ## 许可证
 
