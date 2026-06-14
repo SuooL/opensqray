@@ -45,14 +45,28 @@ M3 is complete when `opensqray tile-index` exposes candidate levels and tile
 previews, synthetic tests cover row-major mapping and missing tile behavior, and
 local sample validation reports tile-index status without committing samples.
 
-## Phase 4: Region Reads
+## Phase 4: Slide Facade and Region-Read Preparation
+
+* Add `SDPCSlide` as an OpenSlide-like facade for SDPC metadata.
+* Expose `dimensions`, `level_count`, `level_dimensions`, `level_downsamples`,
+  `properties`, and associated-image candidate records.
+* Provide raw JPEG byte access for associated-image candidates and tile
+  candidates in the current parser preview.
+* Keep `read_region` explicitly unsupported until pixel decoding and formal
+  tile-index parsing are ready.
+
+M4 is complete when the facade is covered by synthetic tests, can smoke against
+ignored local samples without committing data, and documents that tile
+coordinates remain heuristic.
+
+## Phase 5: Region Reads
 
 * Add tile decoding through a public dependency such as Pillow.
 * Implement `read_region` for SDPC.
 * Match OpenSlide-like coordinate conventions where practical.
 * Add performance tests for large slides.
 
-## Phase 5: Packaging and Integrations
+## Phase 6: Packaging and Integrations
 
 * Decide repository license.
 * Publish package artifacts if desired.

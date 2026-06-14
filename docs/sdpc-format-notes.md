@@ -117,6 +117,22 @@ This is still a candidate reconstruction. The formal SDPC tile index table has
 not yet been located, so downstream code should treat `tile_index` as
 experimental rather than a stable pixel-read contract.
 
+## Slide Facade Boundaries
+
+M4 adds `SDPCSlide`, an OpenSlide-like facade for metadata and raw JPEG
+candidate byte access. The facade exposes:
+
+* level-0 `dimensions`
+* inferred `level_count`, `level_dimensions`, and `level_downsamples`
+* string `properties` derived from parsed SDPC metadata
+* associated-image candidate records keyed by heuristic names
+* raw JPEG bytes for associated-image candidates and tile candidates present in
+  the current parser preview
+
+`SDPCSlide` does not decode pixels and does not claim reliable region reads.
+`read_region()` intentionally raises `NotImplementedError` until the formal SDPC
+tile-index table is mapped and a public decoding path is selected.
+
 ## Current Boundaries
 
 OpenSqray currently treats formal tile-index table parsing, confirmed
