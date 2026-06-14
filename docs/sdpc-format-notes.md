@@ -149,6 +149,33 @@ Decoded tile images inherit the same limitations as `tile_index`: they are
 heuristic candidate tiles from the current parser preview, not proof that a
 formal SDPC tile directory has been mapped. `read_region()` remains unsupported.
 
+## Index Research Diagnostics
+
+M6 adds a diagnostic scanner for reverse-engineering the formal SDPC index
+layout. It emits `schema_version="opensqray.sdpc.index_research.v1"` and is
+separate from the stable metadata contract.
+
+The scanner:
+
+* reads valid JPEG record previews from the existing SDPC parser
+* searches non-JPEG byte windows before or between previewed JPEG records
+* looks for little-endian packed integer runs matching known JPEG offsets, end
+  offsets, or byte lengths
+* reports matches as `candidate_tables` with `confidence="diagnostic"`
+
+These matches can help identify where SDPC might store offset or directory
+tables, but they are not a parsed tile directory. A match can be coincidental,
+and the absence of a match does not prove the format lacks an index table.
+
+Current local smoke observations:
+
+* `20220514_145829_0.sdpc`: no packed offset/end/length candidate was found in
+  the default preview windows.
+* `N067102_8.sdpc`: a `uint32le` run matching 28 previewed tile JPEG byte
+  lengths was found in the gap after the associated-image candidates and before
+  the first tile JPEG candidate. This is useful evidence for further reverse
+  engineering, but it is not yet enough to claim a formal tile index parser.
+
 ## Current Boundaries
 
 OpenSqray currently treats formal tile-index table parsing, confirmed

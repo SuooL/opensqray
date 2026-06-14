@@ -72,7 +72,19 @@ M5 is complete when decoded candidate-image APIs are covered by dependency-free
 tests, missing Pillow reports a clear error, and local smoke validation still
 works without installing Pillow.
 
-## Phase 6: Region Reads
+## Phase 6: Formal Index Research
+
+* Add diagnostics for locating SDPC index-like tables by matching packed JPEG
+  record offsets, end offsets, and lengths in non-JPEG byte windows.
+* Keep diagnostic candidate tables separate from the stable metadata contract.
+* Use ignored local samples to compare whether candidate evidence generalizes
+  across SDPC versions.
+
+M6 is complete when `opensqray index-research` reports candidate evidence with a
+versioned diagnostic contract, synthetic tests cover positive and negative
+cases, and local sample smoke can run without committing data.
+
+## Phase 7: Region Reads
 
 * Use decoded tile primitives to assemble regions once tile ordering is
   validated.
@@ -80,7 +92,7 @@ works without installing Pillow.
 * Match OpenSlide-like coordinate conventions where practical.
 * Add performance tests for large slides.
 
-## Phase 7: Packaging and Integrations
+## Phase 8: Packaging and Integrations
 
 * Decide repository license.
 * Publish package artifacts if desired.
