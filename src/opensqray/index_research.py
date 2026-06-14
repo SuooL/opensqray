@@ -9,7 +9,7 @@ import struct
 from .sdpc import read_sdpc, read_sdpc_byte_range
 
 
-SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v1"
+SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v2"
 INDEX_RESEARCH_ENCODINGS = {
     "uint32le": ("<I", 4),
     "uint64le": ("<Q", 8),
@@ -45,6 +45,7 @@ def scan_sdpc_index_research(
     max_window_bytes: int = 2 * 1024 * 1024,
     min_table_matches: int = 2,
     candidate_limit: int = 50,
+    context_bytes: int = 16,
 ) -> dict[str, object]:
     """Search for diagnostic index-table candidates in an SDPC file.
 
@@ -61,6 +62,8 @@ def scan_sdpc_index_research(
         raise ValueError("min_table_matches must be positive")
     if candidate_limit <= 0:
         raise ValueError("candidate_limit must be positive")
+    if context_bytes < 0:
+        raise ValueError("context_bytes must be non-negative")
 
     path = Path(path)
     info = read_sdpc(
@@ -83,6 +86,7 @@ def scan_sdpc_index_research(
                 window,
                 records,
                 min_table_matches=min_table_matches,
+                context_bytes=context_bytes,
             )
         )
 
@@ -104,6 +108,7 @@ def scan_sdpc_index_research(
         "jpeg_record_count": info.jpeg_streams.get("count"),
         "jpeg_record_preview_count": len(records),
         "preview_limited": bool(info.jpeg_streams.get("preview_limited")),
+        "context_bytes": context_bytes,
         "search_windows": [window.to_dict() for window in windows],
         "candidate_table_count": len(candidate_tables),
         "candidate_limited": limited,
@@ -205,6 +210,7 @@ def _window_candidates(
     records: list[dict[str, int]],
     *,
     min_table_matches: int,
+    context_bytes: int,
 ) -> list[dict[str, object]]:
     candidates: list[dict[str, object]] = []
     for target, values in _target_series(records).items():
@@ -219,6 +225,7 @@ def _window_candidates(
                     fmt=fmt,
                     width=width,
                     min_table_matches=min_table_matches,
+                    context_bytes=context_bytes,
                 )
             )
     return _deduplicate_candidates(candidates)
@@ -242,6 +249,7 @@ def _packed_run_candidates(
     fmt: str,
     width: int,
     min_table_matches: int,
+    context_bytes: int,
 ) -> list[dict[str, object]]:
     if len(values) < min_table_matches:
         return []
@@ -268,16 +276,29 @@ def _packed_run_candidates(
                 width=width,
             )
             if match_count >= min_table_matches:
+                byte_length = match_count * width
+                table_end = window.offset + relative_offset + byte_length
                 candidates.append(
                     {
                         "target": target,
                         "encoding": encoding,
                         "window": window.name,
+                        "window_relative_offset": relative_offset,
                         "offset": window.offset + relative_offset,
-                        "byte_length": match_count * width,
+                        "end_offset": table_end,
+                        "byte_length": byte_length,
                         "match_count": match_count,
                         "start_record_index": value_index,
                         "end_record_index": value_index + match_count - 1,
+                        "distance_to_window_end": (
+                            window.end_offset - table_end
+                        ),
+                        "context": _candidate_context(
+                            data,
+                            relative_offset=relative_offset,
+                            byte_length=byte_length,
+                            context_bytes=context_bytes,
+                        ),
                         "values_preview": values[
                             value_index:value_index + min(match_count, 8)
                         ],
@@ -287,6 +308,25 @@ def _packed_run_candidates(
             cursor = relative_offset + 1
 
     return candidates
+
+
+def _candidate_context(
+    data: bytes,
+    *,
+    relative_offset: int,
+    byte_length: int,
+    context_bytes: int,
+) -> dict[str, object]:
+    before_start = max(0, relative_offset - context_bytes)
+    before = data[before_start:relative_offset]
+    after_start = relative_offset + byte_length
+    after = data[after_start:after_start + context_bytes]
+    return {
+        "bytes_before": len(before),
+        "before_hex": before.hex(),
+        "bytes_after": len(after),
+        "after_hex": after.hex(),
+    }
 
 
 def _count_packed_run(
