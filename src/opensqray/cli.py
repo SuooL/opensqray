@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
         return _associated(args)
     if args.command == "extract-associated":
         return _extract_associated(args)
+    if args.command == "tile-index":
+        return _tile_index(args)
 
     parser.error(f"unknown command: {args.command}")
     return 2
@@ -79,6 +81,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="overwrite existing extracted files",
     )
     extract_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="emit compact JSON",
+    )
+
+    tile_parser = subparsers.add_parser(
+        "tile-index",
+        help="inspect SDPC tile-grid candidates",
+    )
+    tile_parser.add_argument("path", type=Path)
+    tile_parser.add_argument(
+        "--scan-jpegs",
+        action="store_true",
+        help="scan the full SDPC file for valid embedded JPEG record counts",
+    )
+    tile_parser.add_argument(
+        "--preview-limit",
+        type=int,
+        default=50,
+        help="maximum number of JPEG records to keep in the preview",
+    )
+    tile_parser.add_argument(
         "--compact",
         action="store_true",
         help="emit compact JSON",
@@ -157,6 +181,35 @@ def _extract_associated(args: argparse.Namespace) -> int:
         "extracted_count": len(extracted),
         "extracted": extracted,
     }
+    _print_json(payload, compact=args.compact)
+    return 0
+
+
+def _tile_index(args: argparse.Namespace) -> int:
+    path = args.path
+    if not path.exists():
+        print(f"opensqray: file not found: {path}", file=sys.stderr)
+        return 1
+    if not is_sdpc(path):
+        print(
+            "opensqray: tile index inspection is only supported for SDPC",
+            file=sys.stderr,
+        )
+        return 2
+    if args.preview_limit <= 0:
+        print("opensqray: --preview-limit must be positive", file=sys.stderr)
+        return 2
+
+    try:
+        payload = read_sdpc(
+            path,
+            scan_jpegs=args.scan_jpegs,
+            jpeg_preview_limit=args.preview_limit,
+        ).to_dict()["tile_index"]
+    except (SDPCFormatError, OSError) as exc:
+        print(f"opensqray: {exc}", file=sys.stderr)
+        return 2
+
     _print_json(payload, compact=args.compact)
     return 0
 

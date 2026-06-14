@@ -107,6 +107,11 @@ def _summarize_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 for record in payload["associated_images"]["records"]
             ],
         },
+        "tile_index": {
+            "status": payload["tile_index"]["status"],
+            "preview_tile_count": len(payload["tile_index"]["tiles_preview"]),
+            "preview_limited": payload["tile_index"]["preview_limited"],
+        },
         "warnings": payload["validation"]["warnings"],
     }
 
@@ -125,6 +130,10 @@ def _contract_errors(payload: dict[str, Any]) -> list[str]:
         size = payload.get(field, {})
         if size.get("width", 0) <= 0 or size.get("height", 0) <= 0:
             errors.append(f"{field} width and height must be positive")
+
+    tile_index = payload.get("tile_index", {})
+    if tile_index.get("status") not in {"candidate", "unavailable"}:
+        errors.append("tile_index.status must be candidate or unavailable")
 
     return errors
 

@@ -50,7 +50,8 @@ The v1 output keeps three categories distinct:
   `metadata.scanner_model`, `metadata.objective`, and
   `metadata.embedded_strings`.
 * **Research diagnostics**: `experimental`, `jpeg_streams`,
-  `associated_images`, `field_confidence`, and `validation.warnings`.
+  `associated_images`, `tile_index`, `field_confidence`, and
+  `validation.warnings`.
 
 `field_confidence` is part of the output so downstream users can avoid treating
 research diagnostics as formal format guarantees:
@@ -97,9 +98,28 @@ larger candidate is named `macro_candidate`; the other is named
 `label_candidate`. No local sample has yet confirmed a JPEG stream whose encoded
 dimensions exactly match the header thumbnail dimensions.
 
+## Tile Grid Candidates
+
+M3 adds a conservative tile-grid candidate model:
+
+* Expected pyramid grids are inferred from level-0 dimensions, tile size, and
+  level count using power-of-two downsampling.
+* Tile candidates are valid JPEG records whose encoded dimensions match the
+  header tile size.
+* Tile coordinates are assigned row-major within each inferred level.
+* Missing tiles are reported only when the JPEG scan is complete and the record
+  preview is not truncated.
+* Edge tile `valid_size` records the in-slide region covered by a tile; a tile
+  can be marked `padded=true` when the encoded tile size is larger than the
+  valid edge region.
+
+This is still a candidate reconstruction. The formal SDPC tile index table has
+not yet been located, so downstream code should treat `tile_index` as
+experimental rather than a stable pixel-read contract.
+
 ## Current Boundaries
 
-OpenSqray currently treats tile-index parsing, confirmed associated-image role
-classification, and region reads as experimental future work. The parser exposes
-conservative diagnostics first so later behavior can be validated rather than
-inferred too aggressively.
+OpenSqray currently treats formal tile-index table parsing, confirmed
+associated-image role classification, and region reads as experimental future
+work. The parser exposes conservative diagnostics first so later behavior can be
+validated rather than inferred too aggressively.
