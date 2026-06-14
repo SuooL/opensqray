@@ -336,6 +336,40 @@ def extract_sdpc_associated_images(
     return extracted
 
 
+def read_sdpc_byte_range(
+    path: str | Path,
+    *,
+    offset: int,
+    length: int,
+    chunk_size: int = 1024 * 1024,
+) -> bytes:
+    """Read an exact byte range from an SDPC file.
+
+    The caller is responsible for passing offsets and lengths from validated
+    parser records. This helper only enforces non-negative ranges and raises a
+    parser error if the file ends before the requested range is complete.
+    """
+
+    if offset < 0 or length < 0:
+        raise ValueError("offset and length must be non-negative")
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+
+    path = Path(path)
+    remaining = length
+    output = bytearray()
+    with path.open("rb") as handle:
+        handle.seek(offset)
+        while remaining > 0:
+            chunk = handle.read(min(chunk_size, remaining))
+            if not chunk:
+                raise SDPCFormatError("file ended while reading SDPC byte range")
+            output.extend(chunk)
+            remaining -= len(chunk)
+
+    return bytes(output)
+
+
 def _read_version(header: bytes) -> str:
     version = header[:12].split(b"\0", 1)[0].decode("ascii", errors="replace")
     if not version.startswith("SQ"):

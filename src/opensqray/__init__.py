@@ -7,13 +7,17 @@ from .sdpc import (
     SDPCInfo,
     extract_sdpc_associated_images,
     read_sdpc,
+    read_sdpc_byte_range,
 )
+from .slide import SDPCSlide
 
 __all__ = [
     "SDPC_FIELD_CONFIDENCE",
     "SDPC_METADATA_SCHEMA_VERSION",
     "SDPCFormatError",
     "SDPCInfo",
+    "SDPCSlide",
     "extract_sdpc_associated_images",
     "read_sdpc",
+    "read_sdpc_byte_range",
 ]

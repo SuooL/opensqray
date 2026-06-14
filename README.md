@@ -6,7 +6,7 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 ## Status
 
-Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, and heuristic tile-grid candidate inspection. Pixel reads, region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
+Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, and an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes. Pixel reads, region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
 
 ## Install
 
@@ -73,6 +73,28 @@ opensqray tile-index path/to/slide.sdpc
 Tile coordinates are row-major candidates inferred from sequential tile-sized
 JPEG records. They are useful for format research but are not yet a confirmed
 SDPC tile index table.
+
+## Python API
+
+Use `SDPCSlide` when downstream code wants OpenSlide-like metadata attributes
+without requiring OpenSlide or Pillow:
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc") as slide:
+    print(slide.dimensions)
+    print(slide.level_dimensions)
+    print(slide.level_downsamples)
+    print(slide.properties["opensqray.sdpc.version"])
+
+    label_jpeg = slide.read_associated_image_bytes("label_candidate")
+    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
+```
+
+`SDPCSlide` returns raw JPEG bytes from candidate records in the current parser
+preview. It does not decode pixels, and `read_region()` intentionally raises
+`NotImplementedError` until the formal SDPC tile-index table is mapped.
 
 ### SDPC Output Contract
 
