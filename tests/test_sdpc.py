@@ -1,18 +1,26 @@
 from __future__ import annotations
 
+import io
+import json
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 
-from opensqray.sdpc import SDPCFormatError, read_sdpc
+from opensqray.cli import main as cli_main
+from opensqray.sdpc import (
+    SDPC_METADATA_SCHEMA_VERSION,
+    SDPCFormatError,
+    read_sdpc,
+)
 
 
-def make_sdpc_fixture(path: Path) -> None:
+def make_sdpc_fixture(path: Path, *, stored_file_size: int | None = None) -> None:
     data = bytearray(9000)
     data[:12] = b"SQ1.1.9.0430"
     struct.pack_into("<I", data, 0x12, 156)
-    struct.pack_into("<I", data, 0x16, len(data))
+    struct.pack_into("<I", data, 0x16, stored_file_size or len(data))
     struct.pack_into("<I", data, 0x26, 4)
     struct.pack_into("<I", data, 0x2A, 26880)
     struct.pack_into("<I", data, 0x2E, 21504)
@@ -61,6 +69,11 @@ class SDPCParserTests(unittest.TestCase):
         self.assertEqual(info.metadata["objective"], "UPlanApo40X")
         self.assertEqual(info.jpeg_streams["offsets_preview"], [7855])
 
+        payload = info.to_dict()
+        self.assertEqual(payload["schema_version"], SDPC_METADATA_SCHEMA_VERSION)
+        self.assertEqual(payload["field_confidence"]["dimensions"], "high")
+        self.assertEqual(payload["validation"]["warnings"], [])
+
     def test_counts_jpeg_markers_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "sample.sdpc"
@@ -70,6 +83,28 @@ class SDPCParserTests(unittest.TestCase):
 
         self.assertEqual(info.jpeg_streams["count"], 1)
 
+    def test_reports_file_size_mismatch_as_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path, stored_file_size=8999)
+
+            payload = read_sdpc(path).to_dict()
+
+        self.assertFalse(payload["file_size_matches_header"])
+        self.assertEqual(
+            payload["validation"]["warnings"],
+            [
+                {
+                    "code": "file_size_mismatch",
+                    "message": (
+                        "stored_file_size does not match the actual file size"
+                    ),
+                    "stored_file_size": 8999,
+                    "actual_file_size": 9000,
+                }
+            ],
+        )
+
     def test_rejects_non_sdpc_signature(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "not-sdpc.bin"
@@ -78,7 +113,25 @@ class SDPCParserTests(unittest.TestCase):
             with self.assertRaises(SDPCFormatError):
                 read_sdpc(path)
 
+    def test_cli_emits_compact_sdpc_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(["inspect", str(path), "--compact"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["format"], "sdpc")
+        self.assertEqual(payload["schema_version"], SDPC_METADATA_SCHEMA_VERSION)
+        self.assertEqual(payload["dimensions"], {"height": 21504, "width": 26880})
+        self.assertIn("field_confidence", payload)
+        self.assertIn("validation", payload)
+
 
 if __name__ == "__main__":
     unittest.main()
-

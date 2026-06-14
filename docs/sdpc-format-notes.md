@@ -34,7 +34,48 @@ Offsets are little-endian and currently sample-validated, not a formal specifica
 | `0x54` | uint32 | scan magnification, observed `40` | high |
 | `0x58` | uint32 | metadata offset, observed `6964` | high |
 
+## Metadata JSON Contract
+
+OpenSqray currently emits SDPC metadata as
+`schema_version="opensqray.sdpc.metadata.v1"`.
+
+The v1 output keeps three categories distinct:
+
+* **Stable structural fields**: `version`, `file_size`, `stored_file_size`,
+  `file_size_matches_header`, `header_size`, `level_count`, `dimensions`,
+  `tile_size`, `thumbnail_size`, `scan_magnification`, and `metadata_offset`.
+* **Parsed metadata strings**: `metadata.device_id`, `metadata.acquired_at`,
+  `metadata.scanner_model`, `metadata.objective`, and
+  `metadata.embedded_strings`.
+* **Research diagnostics**: `experimental`, `jpeg_streams`,
+  `field_confidence`, and `validation.warnings`.
+
+`field_confidence` is part of the output so downstream users can avoid treating
+research diagnostics as formal format guarantees:
+
+| Confidence | Meaning |
+|---|---|
+| `high` | Stable across current inspected samples and suitable for normal metadata use. |
+| `medium` | Useful parsed metadata string, but classification is heuristic. |
+| `experimental` | Exposed for format research and subject to revision. |
+| `diagnostic` | Runtime or scanning aid, not a complete format model. |
+
+Validation warnings are non-fatal. For example, a stored header file-size
+mismatch is reported with `code="file_size_mismatch"` while parsing continues.
+
+## Local Smoke Validation
+
+The ignored local `data/` directory can be checked with:
+
+```bash
+python3 tools/validate_local_samples.py --compact
+```
+
+The M1 smoke check validated two local SDPC samples against the v1 metadata
+contract without committing sample data. Both samples reported positive
+dimensions, positive level counts, expected metadata keys, JPEG marker previews,
+and no validation warnings.
+
 ## Current Boundaries
 
 OpenSqray currently treats tile-index parsing, associated image classification, and region reads as experimental future work. The parser exposes conservative diagnostics first so later behavior can be validated rather than inferred too aggressively.
-
