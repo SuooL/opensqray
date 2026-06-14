@@ -84,6 +84,17 @@ Tile coordinates are row-major candidates inferred from sequential tile-sized
 JPEG records. They are useful for format research but are not yet a confirmed
 SDPC tile index table.
 
+Search for SDPC index-table diagnostic candidates:
+
+```bash
+opensqray index-research path/to/slide.sdpc
+```
+
+`index-research` scans non-JPEG byte windows before or between previewed JPEG
+records for packed integer runs matching known JPEG offsets, end offsets, or
+lengths. Matches are diagnostic evidence for reverse engineering; they are not
+reported as a parsed SDPC tile directory.
+
 ## Python API
 
 Use `SDPCSlide` when downstream code wants OpenSlide-like metadata attributes
@@ -130,6 +141,10 @@ SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metada
 * Diagnostics: `experimental`, `jpeg_streams`, `field_confidence`, and `validation.warnings`.
 * Associated image candidates: `associated_images.count` and `associated_images.records`.
 * Tile-grid candidates: `tile_index.status`, `tile_index.levels`, `tile_index.tiles_preview`, and `tile_index.missing_tiles_preview`.
+
+The index research diagnostic emits
+`schema_version="opensqray.sdpc.index_research.v1"` and is intentionally
+separate from the stable metadata contract.
 
 `file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
 

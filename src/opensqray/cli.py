@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sys
 
+from .index_research import scan_sdpc_index_research
 from .openslide_adapter import OpenSlideUnavailable, inspect_with_openslide
 from .sdpc import (
     SDPCFormatError,
@@ -28,6 +29,8 @@ def main(argv: list[str] | None = None) -> int:
         return _extract_associated(args)
     if args.command == "tile-index":
         return _tile_index(args)
+    if args.command == "index-research":
+        return _index_research(args)
 
     parser.error(f"unknown command: {args.command}")
     return 2
@@ -103,6 +106,40 @@ def _build_parser() -> argparse.ArgumentParser:
         help="maximum number of JPEG records to keep in the preview",
     )
     tile_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="emit compact JSON",
+    )
+
+    research_parser = subparsers.add_parser(
+        "index-research",
+        help="search SDPC files for diagnostic index-table candidates",
+    )
+    research_parser.add_argument("path", type=Path)
+    research_parser.add_argument(
+        "--scan-jpegs",
+        action="store_true",
+        help="scan the full SDPC file for valid embedded JPEG record counts",
+    )
+    research_parser.add_argument(
+        "--preview-limit",
+        type=int,
+        default=50,
+        help="maximum number of JPEG records to keep in the preview",
+    )
+    research_parser.add_argument(
+        "--max-window-bytes",
+        type=int,
+        default=2 * 1024 * 1024,
+        help="maximum bytes to search in each non-JPEG window",
+    )
+    research_parser.add_argument(
+        "--min-table-matches",
+        type=int,
+        default=2,
+        help="minimum consecutive packed values required for a candidate",
+    )
+    research_parser.add_argument(
         "--compact",
         action="store_true",
         help="emit compact JSON",
@@ -207,6 +244,43 @@ def _tile_index(args: argparse.Namespace) -> int:
             jpeg_preview_limit=args.preview_limit,
         ).to_dict()["tile_index"]
     except (SDPCFormatError, OSError) as exc:
+        print(f"opensqray: {exc}", file=sys.stderr)
+        return 2
+
+    _print_json(payload, compact=args.compact)
+    return 0
+
+
+def _index_research(args: argparse.Namespace) -> int:
+    path = args.path
+    if not path.exists():
+        print(f"opensqray: file not found: {path}", file=sys.stderr)
+        return 1
+    if not is_sdpc(path):
+        print(
+            "opensqray: index research is only supported for SDPC",
+            file=sys.stderr,
+        )
+        return 2
+    if args.preview_limit <= 0:
+        print("opensqray: --preview-limit must be positive", file=sys.stderr)
+        return 2
+    if args.max_window_bytes <= 0:
+        print("opensqray: --max-window-bytes must be positive", file=sys.stderr)
+        return 2
+    if args.min_table_matches <= 0:
+        print("opensqray: --min-table-matches must be positive", file=sys.stderr)
+        return 2
+
+    try:
+        payload = scan_sdpc_index_research(
+            path,
+            scan_jpegs=args.scan_jpegs,
+            jpeg_preview_limit=args.preview_limit,
+            max_window_bytes=args.max_window_bytes,
+            min_table_matches=args.min_table_matches,
+        )
+    except (SDPCFormatError, OSError, ValueError) as exc:
         print(f"opensqray: {exc}", file=sys.stderr)
         return 2
 
