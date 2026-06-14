@@ -1,6 +1,17 @@
 """OpenSqray public APIs."""
 
-from .sdpc import SDPCFormatError, SDPCInfo, read_sdpc
+from .sdpc import (
+    SDPC_FIELD_CONFIDENCE,
+    SDPC_METADATA_SCHEMA_VERSION,
+    SDPCFormatError,
+    SDPCInfo,
+    read_sdpc,
+)
 
-__all__ = ["SDPCFormatError", "SDPCInfo", "read_sdpc"]
-
+__all__ = [
+    "SDPC_FIELD_CONFIDENCE",
+    "SDPC_METADATA_SCHEMA_VERSION",
+    "SDPCFormatError",
+    "SDPCInfo",
+    "read_sdpc",
+]

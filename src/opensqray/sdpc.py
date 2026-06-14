@@ -18,6 +18,29 @@ HEADER_READ_SIZE = 0x2000
 METADATA_BLOCK_SIZE = 0x300
 JPEG_MARKER = b"\xff\xd8\xff"
 ACQUIRED_AT_PATTERN = re.compile(r"\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{2}:\d{2}")
+SDPC_METADATA_SCHEMA_VERSION = "opensqray.sdpc.metadata.v1"
+SDPC_FIELD_CONFIDENCE = {
+    "version": "high",
+    "file_size": "high",
+    "stored_file_size": "high",
+    "file_size_matches_header": "high",
+    "header_size": "high",
+    "level_count": "high",
+    "dimensions": "high",
+    "tile_size": "high",
+    "thumbnail_size": "high",
+    "scan_magnification": "high",
+    "metadata_offset": "high",
+    "metadata.device_id": "medium",
+    "metadata.acquired_at": "medium",
+    "metadata.scanner_model": "medium",
+    "metadata.objective": "medium",
+    "metadata.embedded_strings": "diagnostic",
+    "experimental.scale_hint_offset_0x48": "experimental",
+    "experimental.pixel_size_hint_offset_0x4c": "experimental",
+    "jpeg_streams.count": "diagnostic",
+    "jpeg_streams.offsets_preview": "diagnostic",
+}
 
 
 class SDPCFormatError(ValueError):
@@ -49,6 +72,7 @@ class SDPCInfo:
 
         return {
             "format": "sdpc",
+            "schema_version": SDPC_METADATA_SCHEMA_VERSION,
             "path": self.path,
             "version": self.version,
             "file_size": self.file_size,
@@ -73,7 +97,25 @@ class SDPCInfo:
             "metadata": self.metadata,
             "experimental": self.experimental,
             "jpeg_streams": self.jpeg_streams,
+            "field_confidence": dict(SDPC_FIELD_CONFIDENCE),
+            "validation": self._validation_report(),
         }
+
+    def _validation_report(self) -> dict[str, object]:
+        warnings: list[dict[str, object]] = []
+        if not self.file_size_matches_header:
+            warnings.append(
+                {
+                    "code": "file_size_mismatch",
+                    "message": (
+                        "stored_file_size does not match the actual file size"
+                    ),
+                    "stored_file_size": self.stored_file_size,
+                    "actual_file_size": self.file_size,
+                }
+            )
+
+        return {"warnings": warnings}
 
 
 def is_sdpc(path: str | Path) -> bool:

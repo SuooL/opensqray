@@ -48,6 +48,16 @@ opensqray inspect path/to/slide.svs
 
 If OpenSlide is unavailable, the CLI exits with a clear dependency message instead of trying to parse SVS itself.
 
+### SDPC Output Contract
+
+SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metadata.v1"`. The v1 contract keeps stable metadata fields separate from research diagnostics:
+
+* Stable fields: `version`, `file_size`, `stored_file_size`, `file_size_matches_header`, `header_size`, `level_count`, `dimensions`, `tile_size`, `thumbnail_size`, `scan_magnification`, and `metadata_offset`.
+* Metadata fields: `metadata.device_id`, `metadata.acquired_at`, `metadata.scanner_model`, `metadata.objective`, and `metadata.embedded_strings`.
+* Diagnostics: `experimental`, `jpeg_streams`, `field_confidence`, and `validation.warnings`.
+
+`file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
+
 ## Development
 
 Run tests with the standard library test runner:
@@ -57,6 +67,14 @@ python3 -m unittest discover -s tests
 ```
 
 The tests use synthetic fixtures. Do not commit local whole-slide samples.
+
+To validate ignored local SDPC samples under `data/` without copying or committing them:
+
+```bash
+python3 tools/validate_local_samples.py --compact
+```
+
+Use `--scan-jpegs` only when you need a full JPEG marker count for local research.
 
 ## Git Flow
 
@@ -78,4 +96,3 @@ The following are intentionally ignored:
 ## License
 
 No license has been selected yet. Until the repository owner adds a license, public visibility does not grant reuse rights.
-
