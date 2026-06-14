@@ -23,6 +23,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+image = ["Pillow>=10.0.0"]
 openslide = ["openslide-python>=1.3.1"]
 
 [project.scripts]
@@ -30,4 +31,3 @@ opensqray = "opensqray.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

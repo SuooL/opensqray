@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from opensqray import SDPC_METADATA_SCHEMA_VERSION, SDPCSlide
+from opensqray import ImageDecodeUnavailable, SDPC_METADATA_SCHEMA_VERSION, SDPCSlide
 
 from synthetic_sdpc import make_jpeg_fixture, make_sdpc_fixture
 
@@ -64,6 +65,55 @@ class SDPCSlideTests(unittest.TestCase):
         self.assertEqual(label_bytes, make_jpeg_fixture(992, 1040, b"label"))
         self.assertEqual(tile_by_coordinate, make_jpeg_fixture(672, 672, b"tile1"))
         self.assertEqual(tile_by_sequence, make_jpeg_fixture(672, 672, b"tile2"))
+
+    def test_decodes_associated_and_tile_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            slide = SDPCSlide(path)
+            decoded = object()
+
+            with patch(
+                "opensqray.slide.decode_jpeg_bytes",
+                return_value=decoded,
+            ) as decode:
+                associated = slide.read_associated_image("label_candidate")
+                tile_by_coordinate = slide.read_tile_image(
+                    level=0,
+                    tile_x=1,
+                    tile_y=0,
+                )
+                tile_by_sequence = slide.read_tile_image_by_sequence(2)
+
+        self.assertIs(associated, decoded)
+        self.assertIs(tile_by_coordinate, decoded)
+        self.assertIs(tile_by_sequence, decoded)
+        self.assertEqual(decode.call_count, 3)
+        self.assertEqual(
+            decode.call_args_list[0].args[0],
+            make_jpeg_fixture(992, 1040, b"label"),
+        )
+        self.assertEqual(
+            decode.call_args_list[1].args[0],
+            make_jpeg_fixture(672, 672, b"tile1"),
+        )
+        self.assertEqual(
+            decode.call_args_list[2].args[0],
+            make_jpeg_fixture(672, 672, b"tile2"),
+        )
+
+    def test_decoded_image_methods_report_missing_pillow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            slide = SDPCSlide(path)
+
+            with patch(
+                "opensqray.slide.decode_jpeg_bytes",
+                side_effect=ImageDecodeUnavailable("Pillow is missing"),
+            ):
+                with self.assertRaisesRegex(ImageDecodeUnavailable, "Pillow"):
+                    slide.read_associated_image("label_candidate")
 
     def test_missing_candidate_access_raises_clear_key_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

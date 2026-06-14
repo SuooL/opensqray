@@ -59,14 +59,28 @@ M4 is complete when the facade is covered by synthetic tests, can smoke against
 ignored local samples without committing data, and documents that tile
 coordinates remain heuristic.
 
-## Phase 5: Region Reads
+## Phase 5: Optional Image Decoding
 
-* Add tile decoding through a public dependency such as Pillow.
+* Add a Pillow-backed optional image adapter without making core SDPC parsing
+  depend on Pillow.
+* Decode associated-image candidates and tile JPEG candidates through
+  `SDPCSlide`.
+* Keep decoded tile images labeled as heuristic candidates until formal
+  tile-index parsing is complete.
+
+M5 is complete when decoded candidate-image APIs are covered by dependency-free
+tests, missing Pillow reports a clear error, and local smoke validation still
+works without installing Pillow.
+
+## Phase 6: Region Reads
+
+* Use decoded tile primitives to assemble regions once tile ordering is
+  validated.
 * Implement `read_region` for SDPC.
 * Match OpenSlide-like coordinate conventions where practical.
 * Add performance tests for large slides.
 
-## Phase 6: Packaging and Integrations
+## Phase 7: Packaging and Integrations
 
 * Decide repository license.
 * Publish package artifacts if desired.
