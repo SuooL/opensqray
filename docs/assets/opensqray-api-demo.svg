@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
-  <title id="title">OpenSqray API demo</title>
-  <desc id="desc">Synthetic visual summary of OpenSqray native and SDK-backed SDPC workflows.</desc>
+  <title id="title">OpenSqray API 演示</title>
+  <desc id="desc">OpenSqray 原生解析与 SDK 后端 SDPC 工作流的合成示意图。</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#f8fafc"/>
@@ -18,14 +18,14 @@
 
   <rect width="1200" height="720" rx="0" fill="url(#bg)"/>
 
-  <text x="56" y="64" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">OpenSqray SDPC API demo</text>
-  <text x="56" y="98" font-family="Inter, Arial, sans-serif" font-size="16" fill="#475569">Native parser for public-safe research, optional SDK backend for coordinate tile and region reads.</text>
+  <text x="56" y="64" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">OpenSqray SDPC API 演示</text>
+  <text x="56" y="98" font-family="Inter, Arial, sans-serif" font-size="16" fill="#475569">原生解析服务公开安全研究；可选 SDK 后端负责坐标准确的 tile 与 region 读取。</text>
 
   <g filter="url(#shadow)">
     <rect x="56" y="132" width="486" height="514" rx="18" fill="#ffffff"/>
   </g>
-  <text x="88" y="178" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#0f172a">Slide pyramid and tile workflow</text>
-  <text x="88" y="204" font-family="Inter, Arial, sans-serif" font-size="13" fill="#64748b">Synthetic visual only. No local sample pixels are embedded.</text>
+  <text x="88" y="178" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#0f172a">切片金字塔与 tile 工作流</text>
+  <text x="88" y="204" font-family="Inter, Arial, sans-serif" font-size="13" fill="#64748b">合成示意图，不包含真实切片像素。</text>
 
   <g transform="translate(88 232)">
     <rect x="0" y="0" width="386" height="276" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
@@ -46,35 +46,35 @@
     <rect x="318" y="72" width="44" height="30" rx="3" fill="#dbeafe" stroke="#60a5fa"/>
     <rect x="318" y="122" width="34" height="23" rx="3" fill="#ccfbf1" stroke="#2dd4bf"/>
     <rect x="318" y="160" width="24" height="16" rx="3" fill="#fee2e2" stroke="#fb7185"/>
-    <text x="318" y="57" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#334155">levels</text>
-    <text x="0" y="236" font-family="Menlo, Consolas, monospace" font-size="13" fill="#334155">tile_size = 544 x 448</text>
-    <text x="0" y="258" font-family="Menlo, Consolas, monospace" font-size="13" fill="#334155">level0_grid = 92 x 208</text>
+    <text x="318" y="57" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#334155">层级</text>
+    <text x="0" y="236" font-family="Menlo, Consolas, monospace" font-size="13" fill="#334155">tile_size = width x height</text>
+    <text x="0" y="258" font-family="Menlo, Consolas, monospace" font-size="13" fill="#334155">level0_grid = columns x rows</text>
   </g>
 
   <g transform="translate(88 552)">
     <rect x="0" y="0" width="386" height="56" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
     <circle cx="28" cy="28" r="8" fill="#f97316"/>
-    <text x="48" y="23" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">Native backend</text>
-    <text x="48" y="42" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748b">Metadata, candidates, preview JPEG bytes; no native read_region yet.</text>
+    <text x="48" y="23" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">Native 后端</text>
+    <text x="48" y="42" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748b">元数据、候选资源、preview JPEG；region 读取走 SDK。</text>
   </g>
 
   <g filter="url(#shadow)">
     <rect x="586" y="132" width="558" height="514" rx="18" fill="#0f172a"/>
   </g>
-  <text x="622" y="178" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#f8fafc">Observed SDK-backed command shape</text>
-  <text x="622" y="204" font-family="Inter, Arial, sans-serif" font-size="13" fill="#cbd5e1">The numeric geometry below comes from one local ignored SDPC smoke run.</text>
+  <text x="622" y="178" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#f8fafc">SDK 后端命令与 API 形态</text>
+  <text x="622" y="204" font-family="Inter, Arial, sans-serif" font-size="13" fill="#cbd5e1">示例展示输出结构；实际数值由输入切片与 SDK 返回结果决定。</text>
 
   <g font-family="Menlo, Consolas, monospace" font-size="14">
     <text x="622" y="246" fill="#7dd3fc">$ opensqray sdk-info slide.sdpc --compact</text>
     <text x="622" y="278" fill="#e2e8f0">{</text>
     <text x="646" y="304" fill="#e2e8f0">"backend": "sqray_sdk",</text>
-    <text x="646" y="330" fill="#e2e8f0">"tile_size": {"width": 544, "height": 448},</text>
-    <text x="646" y="356" fill="#e2e8f0">"level_count": 7,</text>
-    <text x="646" y="382" fill="#e2e8f0">"level0_grid": {"columns": 92, "rows": 208}</text>
+    <text x="646" y="330" fill="#e2e8f0">"tile_size": {"width": &lt;width&gt;, "height": &lt;height&gt;},</text>
+    <text x="646" y="356" fill="#e2e8f0">"level_count": &lt;n&gt;,</text>
+    <text x="646" y="382" fill="#e2e8f0">"level0_grid": {"columns": &lt;cols&gt;, "rows": &lt;rows&gt;}</text>
     <text x="622" y="408" fill="#e2e8f0">}</text>
 
     <text x="622" y="456" fill="#7dd3fc">$ opensqray read-tile slide.sdpc --backend sdk ...</text>
-    <text x="622" y="488" fill="#e2e8f0">{"backend":"sdk","byte_length":19805,</text>
+    <text x="622" y="488" fill="#e2e8f0">{"backend":"sdk","byte_length":&lt;bytes&gt;,</text>
     <text x="622" y="514" fill="#e2e8f0"> "content_type":"image/jpeg"}</text>
 
     <text x="622" y="562" fill="#7dd3fc">with SDPCSlide("slide.sdpc", backend="sdk") as slide:</text>
@@ -83,6 +83,6 @@
 
   <g transform="translate(586 666)">
     <rect x="0" y="-26" width="558" height="38" rx="10" fill="#134e4a"/>
-    <text x="20" y="-2" font-family="Inter, Arial, sans-serif" font-size="13" fill="#ccfbf1">SDK backend: practical tile/region reads, not full OpenSlide API parity.</text>
+    <text x="20" y="-2" font-family="Inter, Arial, sans-serif" font-size="13" fill="#ccfbf1">SDK 后端支持实用 tile/region 读取；仍不是完整 OpenSlide API 兼容层。</text>
   </g>
 </svg>
