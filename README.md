@@ -8,6 +8,29 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes, optional Pillow decoding, and an optional Sqray SDK backend for reliable SDPC tile JPEG and BGRA region reads when a local SDK runtime is configured. Formal native tile-index table parsing and color correction are still research work.
 
+## Demo
+
+![OpenSqray API demo](docs/assets/opensqray-api-demo.svg)
+
+The visual above is synthetic and public-safe. It does not embed local sample
+pixels or label images. The command shapes are the actual OpenSqray CLI/API
+surface, and the geometry below is an observed local smoke result from one
+ignored SDPC sample:
+
+```json
+{
+  "backend": "sqray_sdk",
+  "tile_size": {"width": 544, "height": 448},
+  "level_count": 7,
+  "level0_grid": {"columns": 92, "rows": 208}
+}
+```
+
+The same local smoke run wrote a level-0 SDK tile JPEG for
+`(tile_x=0, tile_y=0)` with `19805` bytes. Native candidate bytes matched that
+tile in the research preview for the same sample, but this is validation
+evidence for the current sample, not proof of complete native API parity.
+
 ## Install
 
 For local development:
@@ -233,6 +256,31 @@ treated as a production replacement for the official SDK's pixel APIs yet. Use
 the SDK backend when downstream code needs coordinate-accurate tile reads or
 OpenSlide-style region reads.
 
+Even when `backend="sdk"` is enabled, OpenSqray is not yet a full drop-in
+replacement for `openslide.OpenSlide`. The current facade intentionally covers
+the subset needed for metadata, tile JPEGs, and region reads:
+
+| OpenSlide-style interface | Current OpenSqray status |
+| --- | --- |
+| `close()` and context-manager usage | Supported |
+| `dimensions` | Supported |
+| `level_count` | Supported |
+| `level_dimensions` | Supported; native is inferred, SDK geometry is available through `sdk-info` |
+| `level_downsamples` | Supported as power-of-two inferred values |
+| `properties` | Supported as an OpenSqray string map, not the full OpenSlide property namespace |
+| `associated_images` | Candidate metadata map; not the standard OpenSlide decoded image mapping yet |
+| `read_region(location, level, size)` | SDK backend only, returns a Pillow image when `opensqray[image]` is installed |
+| `get_thumbnail()` | Not implemented |
+| OpenSlide error-latching semantics | Not implemented |
+| DeepZoom helpers | Not implemented |
+| Color correction / ICC handling | Not implemented |
+| Fluorescence, channels, focal planes, and other SDK-specific APIs | Not wrapped yet |
+
+If the product goal is a true OpenSlide-compatible SDPC reader, the next step is
+to build and test a dedicated compatibility layer against the public
+`openslide-python` API surface. The current SDK backend is the foundation for
+that layer, not the finished full-compatibility layer.
+
 ## Quick API Tutorial
 
 Native metadata and candidate-tile workflow:
@@ -290,22 +338,6 @@ with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
 
 `read_region()` requires Pillow because OpenSqray converts the SDK's BGRA bytes
 to an RGBA image object.
-
-Example observed on one local ignored SDPC sample:
-
-```json
-{
-  "backend": "sqray_sdk",
-  "tile_size": {"width": 544, "height": 448},
-  "level_count": 7,
-  "level0_grid": {"columns": 92, "rows": 208}
-}
-```
-
-The same sample produced a level-0 tile JPEG for `(tile_x=0, tile_y=0)` with
-`19805` bytes through the SDK backend. Native candidate bytes matched this tile
-in the local research preview for that sample, but this remains validation
-evidence, not a guarantee of complete native API parity.
 
 ### SDPC Output Contract
 
