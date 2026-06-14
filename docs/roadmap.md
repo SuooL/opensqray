@@ -24,9 +24,15 @@ be validated without entering git history.
 
 ## Phase 2: SDPC Associated Images
 
-* Identify label, macro, and thumbnail JPEG records.
-* Add safe extraction APIs for associated images.
-* Validate on more SDPC versions.
+* Identify valid embedded JPEG records and filter false positive marker hits.
+* Classify leading non-tile JPEG streams as associated-image candidates.
+* Add safe extraction APIs and CLI commands for associated-image candidates.
+* Validate candidate detection on ignored local SDPC samples.
+
+M2 is complete when `opensqray associated` lists candidate records,
+`opensqray extract-associated` writes JPEG candidates without overwriting by
+default, and local smoke validation reports candidate summaries for ignored
+`data/*.sdpc` samples.
 
 ## Phase 3: Tile Index Reconstruction
 

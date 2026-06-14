@@ -9,7 +9,9 @@ Observed SDPC signatures:
 * `SQ1.1.9.0430`
 * `SQ1.0.0.0620`
 
-Both inspected files contain embedded JPEG streams identifiable by `ff d8 ff` markers. The first JPEG marker was found at byte offset `7855` in both local samples.
+Both inspected files contain embedded JPEG streams identifiable by `ff d8 ff`
+candidate markers followed by parseable JPEG structure. The first valid JPEG
+record was found at byte offset `7855` in both local samples.
 
 The fixed metadata block was observed at offset `0x1b34` in both samples and includes device, acquisition-time, scanner, and objective strings.
 
@@ -48,7 +50,7 @@ The v1 output keeps three categories distinct:
   `metadata.scanner_model`, `metadata.objective`, and
   `metadata.embedded_strings`.
 * **Research diagnostics**: `experimental`, `jpeg_streams`,
-  `field_confidence`, and `validation.warnings`.
+  `associated_images`, `field_confidence`, and `validation.warnings`.
 
 `field_confidence` is part of the output so downstream users can avoid treating
 research diagnostics as formal format guarantees:
@@ -73,9 +75,31 @@ python3 tools/validate_local_samples.py --compact
 
 The M1 smoke check validated two local SDPC samples against the v1 metadata
 contract without committing sample data. Both samples reported positive
-dimensions, positive level counts, expected metadata keys, JPEG marker previews,
+dimensions, positive level counts, expected metadata keys, JPEG record previews,
 and no validation warnings.
+
+## Associated Image Candidates
+
+M2 adds conservative embedded JPEG record parsing:
+
+* A marker hit is treated as a JPEG record only when it has a parseable JPEG SOF
+  size and an EOI marker.
+* False positives such as `ff d8 ff` byte sequences inside compressed payloads
+  are ignored.
+* Leading JPEG records whose dimensions do not match the tile size are exposed
+  under `associated_images.records`.
+* Candidate role names such as `label_candidate` and `macro_candidate` are
+  heuristic. They should not be described as confirmed SDPC directory roles
+  until the underlying directory/index records are mapped.
+
+The current local samples both expose two leading non-tile JPEG candidates. The
+larger candidate is named `macro_candidate`; the other is named
+`label_candidate`. No local sample has yet confirmed a JPEG stream whose encoded
+dimensions exactly match the header thumbnail dimensions.
 
 ## Current Boundaries
 
-OpenSqray currently treats tile-index parsing, associated image classification, and region reads as experimental future work. The parser exposes conservative diagnostics first so later behavior can be validated rather than inferred too aggressively.
+OpenSqray currently treats tile-index parsing, confirmed associated-image role
+classification, and region reads as experimental future work. The parser exposes
+conservative diagnostics first so later behavior can be validated rather than
+inferred too aggressively.
