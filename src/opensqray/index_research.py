@@ -9,7 +9,7 @@ import struct
 from .sdpc import read_sdpc, read_sdpc_byte_range
 
 
-SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v2"
+SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v3"
 INDEX_RESEARCH_ENCODINGS = {
     "uint32le": ("<I", 4),
     "uint64le": ("<Q", 8),
@@ -89,6 +89,11 @@ def scan_sdpc_index_research(
                 context_bytes=context_bytes,
             )
         )
+    _attach_length_reconstructions(
+        candidate_tables,
+        records,
+        tile_record_indexes=_tile_candidate_record_indexes(info.tile_index),
+    )
 
     candidate_tables.sort(
         key=lambda item: (
@@ -413,3 +418,136 @@ def _is_contained_in_existing_candidate(
             return True
 
     return False
+
+
+def _attach_length_reconstructions(
+    candidates: list[dict[str, object]],
+    records: list[dict[str, int]],
+    *,
+    tile_record_indexes: set[int],
+) -> None:
+    for candidate in candidates:
+        if candidate.get("target") != "length":
+            continue
+        candidate["length_reconstruction"] = _length_reconstruction(
+            candidate,
+            records,
+            tile_record_indexes=tile_record_indexes,
+        )
+
+
+def _length_reconstruction(
+    candidate: dict[str, object],
+    records: list[dict[str, int]],
+    *,
+    tile_record_indexes: set[int],
+) -> dict[str, object]:
+    start = int(candidate["start_record_index"])
+    match_count = int(candidate["match_count"])
+    matched_records = records[start:start + match_count]
+    if not matched_records:
+        return {
+            "status": "unavailable",
+            "reason": "candidate record range is outside the current preview",
+            "confidence": "diagnostic",
+        }
+
+    first_record = matched_records[0]
+    first_record_offset = first_record["offset"]
+    derived_offsets: list[int] = []
+    derived_end_offsets: list[int] = []
+    derived_records: list[dict[str, object]] = []
+    cursor = first_record_offset
+    previous_observed_end: int | None = None
+    adjacent_pair_count = 0
+
+    for preview_position, record in enumerate(matched_records, start=start):
+        derived_offset = cursor
+        derived_end_offset = derived_offset + record["length"]
+        offset_matches = derived_offset == record["offset"]
+        end_offset_matches = derived_end_offset == record["end_offset"]
+        if (
+            previous_observed_end is not None
+            and record["offset"] == previous_observed_end
+        ):
+            adjacent_pair_count += 1
+
+        derived_offsets.append(derived_offset)
+        derived_end_offsets.append(derived_end_offset)
+        derived_records.append(
+            {
+                "preview_position": preview_position,
+                "record_index": record["index"],
+                "table_length": record["length"],
+                "derived_offset": derived_offset,
+                "derived_end_offset": derived_end_offset,
+                "observed_offset": record["offset"],
+                "observed_end_offset": record["end_offset"],
+                "offset_matches": offset_matches,
+                "end_offset_matches": end_offset_matches,
+            }
+        )
+        cursor = derived_end_offset
+        previous_observed_end = record["end_offset"]
+
+    matched_offset_count = sum(
+        1 for item in derived_records if item["offset_matches"]
+    )
+    matched_end_offset_count = sum(
+        1 for item in derived_records if item["end_offset_matches"]
+    )
+    first_tile_offset = (
+        first_record_offset
+        if first_record["index"] in tile_record_indexes
+        else None
+    )
+
+    return {
+        "status": "candidate",
+        "strategy": "cumulative_lengths_from_first_preview_record_offset",
+        "length_table_record_range": {
+            "start_preview_position": start,
+            "end_preview_position": start + len(matched_records) - 1,
+            "start_record_index": first_record["index"],
+            "end_record_index": matched_records[-1]["index"],
+        },
+        "first_record_offset": first_record_offset,
+        "first_tile_offset": first_tile_offset,
+        "derived_offsets": derived_offsets,
+        "derived_end_offsets": derived_end_offsets,
+        "matched_offset_count": matched_offset_count,
+        "matched_end_offset_count": matched_end_offset_count,
+        "matches_preview_offsets": matched_offset_count == len(matched_records),
+        "matches_preview_end_offsets": (
+            matched_end_offset_count == len(matched_records)
+        ),
+        "observed_adjacent_pair_count": adjacent_pair_count,
+        "all_preview_records_adjacent": adjacent_pair_count == max(
+            len(matched_records) - 1,
+            0,
+        ),
+        "derived_records_preview": derived_records[:8],
+        "confidence": "diagnostic",
+        "limitations": [
+            "Reconstruction is anchored to the first matched preview record offset.",
+            "It validates whether matched byte lengths reproduce preview offsets; "
+            "it does not identify tile coordinates or a complete SDPC directory.",
+        ],
+    }
+
+
+def _tile_candidate_record_indexes(tile_index: object) -> set[int]:
+    if not isinstance(tile_index, dict):
+        return set()
+    tiles_preview = tile_index.get("tiles_preview")
+    if not isinstance(tiles_preview, list):
+        return set()
+
+    output: set[int] = set()
+    for tile in tiles_preview:
+        if not isinstance(tile, dict):
+            continue
+        record_index = tile.get("record_index")
+        if type(record_index) is int:
+            output.add(record_index)
+    return output

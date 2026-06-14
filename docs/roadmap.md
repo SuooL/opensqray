@@ -78,6 +78,8 @@ works without installing Pillow.
   record offsets, end offsets, and lengths in non-JPEG byte windows.
 * Add candidate table context fields so runs can be inspected in their
   surrounding binary structure.
+* Validate whether packed length-table candidates can reconstruct preview JPEG
+  offsets through cumulative byte lengths.
 * Keep diagnostic candidate tables separate from the stable metadata contract.
 * Use ignored local samples to compare whether candidate evidence generalizes
   across SDPC versions.
@@ -86,17 +88,74 @@ M6 is complete when `opensqray index-research` reports candidate evidence with a
 versioned diagnostic contract, synthetic tests cover positive and negative
 cases, and local sample smoke can run without committing data.
 
-## Phase 7: Region Reads
+## Remaining Development Plan
 
-* Use decoded tile primitives to assemble regions once tile ordering is
-  validated.
-* Implement `read_region` for SDPC.
-* Match OpenSlide-like coordinate conventions where practical.
-* Add performance tests for large slides.
+### M8: Length-Table Reconstruction Diagnostics
 
-## Phase 8: Packaging and Integrations
+* Extend `index-research` so length-table candidates report whether cumulative
+  byte lengths reproduce observed preview JPEG offsets and end offsets.
+* Keep this under the diagnostic `index-research` schema, not the stable SDPC
+  metadata schema.
+* Add synthetic positive and negative tests:
+  * adjacent JPEG tile records reconstruct cleanly
+  * non-adjacent JPEG records do not get over-claimed
+* Validate against ignored local samples, especially `N067102_8.sdpc`.
+
+M8 is complete when the v3 diagnostic contract exposes length reconstruction
+evidence, tests cover reconstruction and mismatch cases, and local smoke confirms
+the observation without committing sample data.
+
+### M9: Formal Tile Directory Candidate Research
+
+* Inspect the byte range around confirmed length tables to identify neighboring
+  fields that may encode tile count, level, row/column, plane/channel, or table
+  boundaries.
+* Compare at least two local SDPC files and any future public-safe synthetic
+  patterns before promoting a field from diagnostic to experimental.
+* Consult the local official SDK headers only for API semantics such as
+  coordinate systems, tile dimensions, level counts, and returned image formats;
+  do not copy or expose proprietary implementation details.
+* Write a public-safe research note describing observed structures and negative
+  findings.
+
+M9 is complete when OpenSqray can name the most plausible directory/table
+segments and explain what is still unknown without claiming a full parser.
+
+### M10: Confirmed Tile Map Prototype
+
+* Build an experimental tile-map object only after directory/table evidence
+  links JPEG byte ranges to level and tile matrix coordinates.
+* Cross-check expected level grids, candidate table lengths, reconstructed
+  offsets, and record dimensions.
+* Add synthetic tests for sparse tiles, edge tiles, preview-limited scans, and
+  invalid/mismatched tables.
+* Keep the existing heuristic row-major tile preview as a fallback diagnostic,
+  clearly separated from any parsed table.
+
+M10 is complete when a parsed/experimental tile map can be produced for validated
+samples and fails closed when table evidence is incomplete or contradictory.
+
+### M11: Pixel Access and Region Reads
+
+* Use parsed tile maps and optional image decoding to assemble `read_region`.
+* Match OpenSlide-like top-left coordinate conventions where practical.
+* Handle edge padding, level selection, bounds, and missing-tile behavior
+  explicitly.
+* Add tests for tile-aligned reads, cross-tile reads, edge reads, and unsupported
+  dependency paths.
+* Keep color correction out of the first region-read implementation unless a
+  public-safe, testable correction path is identified.
+
+M11 is complete when `SDPCSlide.read_region()` works from a confirmed tile map,
+has focused tests, and no longer depends on heuristic tile order.
+
+### M12: Packaging, Release, and Integrations
 
 * Decide repository license.
 * Publish package artifacts if desired.
 * Add examples for downstream pathology and medical AI workflows.
 * Consider a plugin adapter for viewers after core parsing is stable.
+
+M12 is complete when `dev` is intentionally promoted to `main`, a SemVer tag and
+GitHub Release are created, and release notes clearly state SDPC support
+boundaries.

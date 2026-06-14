@@ -10,11 +10,15 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from opensqray import (
     SDPC_INDEX_RESEARCH_SCHEMA_VERSION,
+    read_sdpc,
     scan_sdpc_index_research,
 )
 from opensqray.cli import main as cli_main
 
-from synthetic_sdpc import make_sdpc_fixture
+from synthetic_sdpc import (
+    make_adjacent_tile_length_table_fixture,
+    make_sdpc_fixture,
+)
 
 
 def write_uint32_offset_table(
@@ -82,6 +86,92 @@ class SDPCIndexResearchTests(unittest.TestCase):
         )
         self.assertEqual(candidate["values_preview"], [8200, 8300, 8400])
         self.assertEqual(candidate["confidence"], "diagnostic")
+
+    def test_reconstructs_preview_offsets_from_adjacent_length_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            fixture = make_adjacent_tile_length_table_fixture(path)
+
+            payload = scan_sdpc_index_research(path, context_bytes=0)
+
+        candidates = [
+            candidate
+            for candidate in payload["candidate_tables"]
+            if candidate["target"] == "length"
+            and candidate["offset"] == fixture["length_table_offset"]
+        ]
+        self.assertEqual(len(candidates), 1)
+        candidate = candidates[0]
+        reconstruction = candidate["length_reconstruction"]
+        self.assertEqual(reconstruction["status"], "candidate")
+        self.assertEqual(
+            reconstruction["strategy"],
+            "cumulative_lengths_from_first_preview_record_offset",
+        )
+        self.assertEqual(
+            reconstruction["length_table_record_range"],
+            {
+                "start_preview_position": 2,
+                "end_preview_position": 4,
+                "start_record_index": 2,
+                "end_record_index": 4,
+            },
+        )
+        self.assertEqual(
+            reconstruction["first_record_offset"],
+            fixture["first_tile_offset"],
+        )
+        self.assertEqual(
+            reconstruction["first_tile_offset"],
+            fixture["first_tile_offset"],
+        )
+        self.assertEqual(
+            reconstruction["derived_offsets"],
+            fixture["tile_offsets"],
+        )
+        self.assertEqual(
+            reconstruction["derived_end_offsets"],
+            fixture["tile_end_offsets"],
+        )
+        self.assertEqual(reconstruction["matched_offset_count"], 3)
+        self.assertEqual(reconstruction["matched_end_offset_count"], 3)
+        self.assertTrue(reconstruction["matches_preview_offsets"])
+        self.assertTrue(reconstruction["matches_preview_end_offsets"])
+        self.assertEqual(reconstruction["observed_adjacent_pair_count"], 2)
+        self.assertTrue(reconstruction["all_preview_records_adjacent"])
+        self.assertEqual(
+            [
+                item["derived_offset"]
+                for item in reconstruction["derived_records_preview"]
+            ],
+            fixture["tile_offsets"],
+        )
+        self.assertEqual(reconstruction["confidence"], "diagnostic")
+
+    def test_length_reconstruction_reports_non_adjacent_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            records = read_sdpc(path).jpeg_streams["records_preview"]
+            lengths = [record["length"] for record in records[2:5]]
+            write_uint32_offset_table(path, 7200, lengths)
+
+            payload = scan_sdpc_index_research(path, context_bytes=0)
+
+        candidates = [
+            candidate
+            for candidate in payload["candidate_tables"]
+            if candidate["target"] == "length"
+            and candidate["offset"] == 7200
+        ]
+        self.assertEqual(len(candidates), 1)
+        reconstruction = candidates[0]["length_reconstruction"]
+        self.assertEqual(reconstruction["matched_offset_count"], 1)
+        self.assertEqual(reconstruction["matched_end_offset_count"], 1)
+        self.assertFalse(reconstruction["matches_preview_offsets"])
+        self.assertFalse(reconstruction["matches_preview_end_offsets"])
+        self.assertEqual(reconstruction["observed_adjacent_pair_count"], 0)
+        self.assertFalse(reconstruction["all_preview_records_adjacent"])
 
     def test_respects_minimum_table_match_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
