@@ -9,7 +9,7 @@ import struct
 from .sdpc import read_sdpc, read_sdpc_byte_range
 
 
-SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v3"
+SDPC_INDEX_RESEARCH_SCHEMA_VERSION = "opensqray.sdpc.index_research.v4"
 INDEX_RESEARCH_ENCODINGS = {
     "uint32le": ("<I", 4),
     "uint64le": ("<Q", 8),
@@ -93,6 +93,7 @@ def scan_sdpc_index_research(
         candidate_tables,
         records,
         tile_record_indexes=_tile_candidate_record_indexes(info.tile_index),
+        expected_tile_levels=_expected_tile_levels(info.tile_index),
     )
 
     candidate_tables.sort(
@@ -425,6 +426,7 @@ def _attach_length_reconstructions(
     records: list[dict[str, int]],
     *,
     tile_record_indexes: set[int],
+    expected_tile_levels: list[dict[str, object]],
 ) -> None:
     for candidate in candidates:
         if candidate.get("target") != "length":
@@ -433,6 +435,10 @@ def _attach_length_reconstructions(
             candidate,
             records,
             tile_record_indexes=tile_record_indexes,
+        )
+        candidate["length_table_extent"] = _length_table_extent(
+            candidate,
+            expected_tile_levels=expected_tile_levels,
         )
 
 
@@ -551,3 +557,80 @@ def _tile_candidate_record_indexes(tile_index: object) -> set[int]:
         if type(record_index) is int:
             output.add(record_index)
     return output
+
+
+def _expected_tile_levels(tile_index: object) -> list[dict[str, object]]:
+    if not isinstance(tile_index, dict):
+        return []
+    levels = tile_index.get("levels")
+    if not isinstance(levels, list):
+        return []
+
+    output: list[dict[str, object]] = []
+    for level in levels:
+        if not isinstance(level, dict):
+            continue
+        level_index = level.get("level")
+        expected_tiles = level.get("expected_tiles")
+        if type(level_index) is not int or type(expected_tiles) is not int:
+            continue
+        output.append(
+            {
+                "level": level_index,
+                "expected_tiles": expected_tiles,
+                "grid": level.get("grid"),
+                "dimensions": level.get("dimensions"),
+                "first_sequence_index": level.get("first_sequence_index"),
+                "last_sequence_index": level.get("last_sequence_index"),
+            }
+        )
+    return output
+
+
+def _length_table_extent(
+    candidate: dict[str, object],
+    *,
+    expected_tile_levels: list[dict[str, object]],
+) -> dict[str, object]:
+    encoding = str(candidate["encoding"])
+    width = INDEX_RESEARCH_ENCODINGS.get(encoding, ("", 0))[1]
+    if width <= 0:
+        return {
+            "status": "unavailable",
+            "reason": f"unsupported candidate encoding: {encoding}",
+            "confidence": "diagnostic",
+        }
+
+    bytes_to_window_end = int(candidate["byte_length"]) + int(
+        candidate["distance_to_window_end"]
+    )
+    value_slots_to_window_end = bytes_to_window_end // width
+    trailing_bytes_to_window_end = bytes_to_window_end % width
+    matching_levels = [
+        level
+        for level in expected_tile_levels
+        if level["expected_tiles"] == value_slots_to_window_end
+    ]
+
+    return {
+        "status": "candidate",
+        "strategy": "candidate_offset_to_search_window_end_value_slots",
+        "value_width": width,
+        "byte_length_to_window_end": bytes_to_window_end,
+        "value_slots_to_window_end": value_slots_to_window_end,
+        "trailing_bytes_to_window_end": trailing_bytes_to_window_end,
+        "candidate_match_count": int(candidate["match_count"]),
+        "unpreviewed_value_slots": max(
+            value_slots_to_window_end - int(candidate["match_count"]),
+            0,
+        ),
+        "expected_tile_level_matches": matching_levels,
+        "matches_any_expected_level_tile_count": bool(matching_levels),
+        "confidence": "diagnostic",
+        "limitations": [
+            "The extent assumes the current non-JPEG search window ends at the "
+            "table boundary.",
+            "A value-slot count matching an expected level tile count is "
+            "structural evidence only, not a parsed SDPC directory.",
+        ],
+    }

@@ -101,12 +101,15 @@ cases, and local sample smoke can run without committing data.
   * non-adjacent JPEG records do not get over-claimed
 * Validate against ignored local samples, especially `N067102_8.sdpc`.
 
-M8 is complete when the v3 diagnostic contract exposes length reconstruction
+M8 is complete when the v3+ diagnostic contract exposes length reconstruction
 evidence, tests cover reconstruction and mismatch cases, and local smoke confirms
 the observation without committing sample data.
 
 ### M9: Formal Tile Directory Candidate Research
 
+* Extend length-table diagnostics so the byte extent from a candidate table to
+  the current non-JPEG window boundary is compared with expected pyramid-level
+  tile counts.
 * Inspect the byte range around confirmed length tables to identify neighboring
   fields that may encode tile count, level, row/column, plane/channel, or table
   boundaries.
