@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .image_adapter import decode_jpeg_bytes
 from .sdpc import (
     SDPC_METADATA_SCHEMA_VERSION,
     SDPCFormatError,
@@ -126,6 +127,11 @@ class SDPCSlide:
             raise KeyError(f"unknown associated-image candidate: {name}")
         return self._read_record_bytes(record)
 
+    def read_associated_image(self, name: str) -> object:
+        """Decode and return an associated-image candidate with Pillow."""
+
+        return decode_jpeg_bytes(self.read_associated_image_bytes(name))
+
     def read_tile_jpeg_bytes(self, *, level: int, tile_x: int, tile_y: int) -> bytes:
         """Return raw JPEG bytes for a tile candidate in the current preview."""
 
@@ -144,6 +150,13 @@ class SDPCSlide:
             "mapping"
         )
 
+    def read_tile_image(self, *, level: int, tile_x: int, tile_y: int) -> object:
+        """Decode and return a tile candidate with Pillow."""
+
+        return decode_jpeg_bytes(
+            self.read_tile_jpeg_bytes(level=level, tile_x=tile_x, tile_y=tile_y)
+        )
+
     def read_tile_jpeg_bytes_by_sequence(self, sequence_index: int) -> bytes:
         """Return raw JPEG bytes for a tile candidate by preview sequence."""
 
@@ -157,6 +170,11 @@ class SDPCSlide:
             "increase jpeg_preview_limit or wait for formal SDPC tile-index "
             "mapping"
         )
+
+    def read_tile_image_by_sequence(self, sequence_index: int) -> object:
+        """Decode and return a tile candidate by preview sequence with Pillow."""
+
+        return decode_jpeg_bytes(self.read_tile_jpeg_bytes_by_sequence(sequence_index))
 
     def read_region(
         self,

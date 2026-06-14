@@ -6,7 +6,7 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 ## Status
 
-Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, and an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes. Pixel reads, region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
+Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes, and optional Pillow decoding for candidate JPEG records. Region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
 
 ## Install
 
@@ -25,6 +25,16 @@ python -m pip install -e ".[openslide]"
 ```
 
 You also need the native OpenSlide library available on your system for SVS and other OpenSlide-backed formats.
+
+Optional image decoding support:
+
+```bash
+python -m pip install -e ".[image]"
+```
+
+Image decoding uses Pillow and is only needed when calling decoded image APIs.
+Core SDPC metadata, JPEG record inspection, and raw JPEG byte access do not
+require Pillow.
 
 ## CLI
 
@@ -92,9 +102,24 @@ with SDPCSlide("path/to/slide.sdpc") as slide:
     tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
 ```
 
-`SDPCSlide` returns raw JPEG bytes from candidate records in the current parser
-preview. It does not decode pixels, and `read_region()` intentionally raises
+`SDPCSlide` can return raw JPEG bytes from candidate records in the current
+parser preview without extra dependencies. `read_region()` intentionally raises
 `NotImplementedError` until the formal SDPC tile-index table is mapped.
+
+With the optional `image` dependency installed, candidate JPEG records can be
+decoded with Pillow:
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc") as slide:
+    label_image = slide.read_associated_image("label_candidate")
+    tile_image = slide.read_tile_image(level=0, tile_x=0, tile_y=0)
+```
+
+Decoded tile images still come from heuristic tile candidates. They are useful
+for local format research and preview tooling, but they are not a full
+OpenSlide-compatible region-read implementation.
 
 ### SDPC Output Contract
 

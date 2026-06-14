@@ -129,9 +129,25 @@ candidate byte access. The facade exposes:
 * raw JPEG bytes for associated-image candidates and tile candidates present in
   the current parser preview
 
-`SDPCSlide` does not decode pixels and does not claim reliable region reads.
-`read_region()` intentionally raises `NotImplementedError` until the formal SDPC
-tile-index table is mapped and a public decoding path is selected.
+`SDPCSlide` does not claim reliable region reads. `read_region()` intentionally
+raises `NotImplementedError` until the formal SDPC tile-index table is mapped
+and region assembly is validated.
+
+## Optional Image Decoding
+
+M5 adds a Pillow-backed optional image adapter. Core SDPC parsing, associated
+image inspection, tile-index candidate inspection, and raw JPEG byte reads still
+work with only the Python standard library.
+
+When the `image` optional dependency is installed, `SDPCSlide` can decode:
+
+* associated-image candidate JPEG records via `read_associated_image()`
+* tile candidate JPEG records via `read_tile_image()` and
+  `read_tile_image_by_sequence()`
+
+Decoded tile images inherit the same limitations as `tile_index`: they are
+heuristic candidate tiles from the current parser preview, not proof that a
+formal SDPC tile directory has been mapped. `read_region()` remains unsupported.
 
 ## Current Boundaries
 
