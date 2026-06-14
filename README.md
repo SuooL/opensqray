@@ -1,176 +1,132 @@
 # OpenSqray
 
-OpenSqray is a public whole-slide image utility focused on Sqray SDPC inspection and format research. The first milestone provides a native SDPC metadata parser and a CLI. Standard whole-slide formats such as SVS are delegated to OpenSlide when the optional OpenSlide Python bindings and native library are installed.
+[![CI](https://github.com/SuooL/opensqray/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SuooL/opensqray/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Status](https://img.shields.io/badge/status-alpha-orange)
 
-This repository intentionally does not vendor proprietary Sqray SDK files or local sample slide data.
+OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Python 工具库，当前重点支持 Sqray SDPC 文件的公开安全解析、元数据检查、候选 JPEG 资源提取，以及可选的 SDK 后端读图能力。对 SVS 等通用 WSI 格式，OpenSqray 通过可选 OpenSlide 依赖进行检查，不重复造一套私有解析器。
 
-## Status
+项目目标不是把未公开格式“猜成确定协议”，而是提供一个可测试、可复现、边界清楚的工程层：能原生解析的内容原生解析；需要官方运行时才能可靠完成的像素读取，明确交给可选 SDK 后端。
 
-Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes, optional Pillow decoding, and an optional Sqray SDK backend for reliable SDPC tile JPEG and BGRA region reads when a local SDK runtime is configured. Formal native tile-index table parsing and color correction are still research work.
+## 功能概览
 
-## Demo
+- SDPC 基础元数据解析：尺寸、层级数、tile size、缩略图尺寸、扫描倍率、设备/扫描相关字符串等。
+- 嵌入 JPEG 记录扫描：过滤明显 false positive，只返回可解析的 JPEG 记录。
+- Associated image 候选：可列出和导出 label/macro 等候选 JPEG 资源。
+- Tile index 研究工具：提供 row-major 候选 tile 映射和 index-table 诊断输出。
+- OpenSlide-like `SDPCSlide` facade：提供 `dimensions`、`level_dimensions`、`properties`、tile JPEG byte 读取等接口。
+- 可选 Pillow 解码：安装 `opensqray[image]` 后可将候选 JPEG 或 SDK BGRA region 转成图像对象。
+- 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
+- 可选 OpenSlide 后端：用于 SVS 等 OpenSlide 支持的标准格式检查。
+
+## 效果预览
 
 ![OpenSqray API demo](docs/assets/opensqray-api-demo.svg)
 
-The visual above is synthetic and public-safe. It does not embed local sample
-pixels or label images. The command shapes are the actual OpenSqray CLI/API
-surface, and the geometry below is an observed local smoke result from one
-ignored SDPC sample:
+上图是公开安全的合成示意图，不包含真实切片像素或受限数据。它展示的是 OpenSqray 的典型调用路径：原生解析用于元数据与候选资源研究，SDK 后端用于坐标准确的 tile/region 读取。
 
-```json
-{
-  "backend": "sqray_sdk",
-  "tile_size": {"width": 544, "height": 448},
-  "level_count": 7,
-  "level0_grid": {"columns": 92, "rows": 208}
-}
-```
+## 安装
 
-The same local smoke run wrote a level-0 SDK tile JPEG for
-`(tile_x=0, tile_y=0)` with `19805` bytes. Native candidate bytes matched that
-tile in the research preview for the same sample, but this is validation
-evidence for the current sample, not proof of complete native API parity.
-
-## Install
-
-For local development:
+从源码安装：
 
 ```bash
+git clone https://github.com/SuooL/opensqray.git
+cd opensqray
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
 ```
 
-Optional OpenSlide support:
-
-```bash
-python -m pip install -e ".[openslide]"
-```
-
-You also need the native OpenSlide library available on your system for SVS and other OpenSlide-backed formats.
-
-Optional image decoding support:
+安装图像解码能力：
 
 ```bash
 python -m pip install -e ".[image]"
 ```
 
-Image decoding uses Pillow and is only needed when calling decoded image APIs.
-Core SDPC metadata, JPEG record inspection, and raw JPEG byte access do not
-require Pillow.
+安装 OpenSlide Python 绑定：
 
-Optional Sqray SDK backend:
+```bash
+python -m pip install -e ".[openslide]"
+```
 
-OpenSqray does not vendor or redistribute proprietary Sqray SDK binaries. If
-you have a licensed SDK runtime locally, point OpenSqray at its library
-directory:
+使用 SVS 等 OpenSlide-backed 格式时，还需要系统中已安装 OpenSlide native library。
+
+配置可选 Sqray SDK 后端：
 
 ```bash
 export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
-# or:
+# 或者：
 export OPENSQRAY_SDK_DIR=/path/to/sqrayslide
 ```
 
-If the runtime needs extra native-library directories, set:
+如果 SDK runtime 还依赖额外 native library 目录：
 
 ```bash
 export OPENSQRAY_SDK_EXTRA_LIB_DIRS=/path/to/extra/libs
 ```
 
-On macOS and Linux, the platform dynamic-library search path may still need to
-include the SDK directory for transitive dependencies. For private deployment,
-prefer a private wheel or Docker image that contains the SDK runtime with
-platform-appropriate rpaths/install names.
+OpenSqray 不随仓库分发、复制或再打包任何专有 SDK 二进制文件。
 
-## CLI
+## 快速开始
 
-Inspect an SDPC file:
+检查 SDPC 元数据：
 
 ```bash
-opensqray inspect path/to/slide.sdpc
+opensqray inspect path/to/slide.sdpc --compact
 ```
 
-Include a full valid-JPEG-record scan:
+列出 associated image 候选：
 
 ```bash
-opensqray inspect path/to/slide.sdpc --scan-jpegs
+opensqray associated path/to/slide.sdpc --compact
 ```
 
-Inspect an OpenSlide-supported file such as SVS:
+导出 associated image 候选 JPEG：
 
 ```bash
-opensqray inspect path/to/slide.svs
+opensqray extract-associated path/to/slide.sdpc \
+  --output-dir associated-images
 ```
 
-If OpenSlide is unavailable, the CLI exits with a clear dependency message instead of trying to parse SVS itself.
-
-List SDPC associated-image candidates:
+查看 tile-grid 候选：
 
 ```bash
-opensqray associated path/to/slide.sdpc
+opensqray tile-index path/to/slide.sdpc \
+  --preview-limit 30 \
+  --compact
 ```
 
-Extract associated-image JPEG candidates without overwriting existing files:
-
-```bash
-opensqray extract-associated path/to/slide.sdpc --output-dir associated-images
-```
-
-Associated-image role names such as `label_candidate` and `macro_candidate` are
-heuristic. They identify leading non-tile JPEG streams before the first
-tile-sized JPEG record; they are not yet formal SDPC directory entries.
-
-Inspect SDPC tile-grid candidates:
-
-```bash
-opensqray tile-index path/to/slide.sdpc
-```
-
-Tile coordinates are row-major candidates inferred from sequential tile-sized
-JPEG records. They are useful for format research but are not yet a confirmed
-SDPC tile index table.
-
-Search for SDPC index-table diagnostic candidates:
-
-```bash
-opensqray index-research path/to/slide.sdpc
-```
-
-`index-research` scans non-JPEG byte windows before or between previewed JPEG
-records for packed integer runs matching known JPEG offsets, end offsets, or
-lengths. It also reports table position, small before/after hex context, and
-for length-table candidates cumulative offset reconstruction and table-extent
-checks. Matches are diagnostic evidence for reverse engineering; they are not
-reported as a parsed SDPC tile directory.
-
-Inspect geometry through a locally configured Sqray SDK runtime:
-
-```bash
-opensqray sdk-info path/to/slide.sdpc
-```
-
-Write one tile JPEG through the native candidate backend:
+读取一个候选 tile JPEG：
 
 ```bash
 opensqray read-tile path/to/slide.sdpc \
+  --backend native \
+  --preview-limit 100 \
   --level 0 --tile-x 0 --tile-y 0 \
-  --output tile.jpg
+  --output tile-native.jpg
 ```
 
-Write one tile JPEG through the official SDK backend:
+使用 SDK 后端读取 tile：
 
 ```bash
 opensqray read-tile path/to/slide.sdpc \
   --backend sdk \
   --sdk-lib-dir /path/to/sqrayslide/lib \
   --level 0 --tile-x 0 --tile-y 0 \
-  --output tile.jpg
+  --output tile-sdk.jpg
 ```
+
+检查 SVS 等 OpenSlide 支持的文件：
+
+```bash
+opensqray inspect path/to/slide.svs --compact
+```
+
+如果 OpenSlide 不可用，CLI 会返回清晰的依赖提示，而不是尝试用 SDPC parser 解析 SVS。
 
 ## Python API
 
-Use `SDPCSlide` when downstream code wants OpenSlide-like metadata attributes
-without requiring OpenSlide or Pillow:
+原生 SDPC 元数据与候选 JPEG：
 
 ```python
 from opensqray import SDPCSlide
@@ -179,152 +135,21 @@ with SDPCSlide("path/to/slide.sdpc") as slide:
     print(slide.dimensions)
     print(slide.level_dimensions)
     print(slide.level_downsamples)
-    print(slide.properties["opensqray.sdpc.version"])
-
-    label_jpeg = slide.read_associated_image_bytes("label_candidate")
-    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
-```
-
-`SDPCSlide` can return raw JPEG bytes from candidate records in the current
-parser preview without extra dependencies. `read_region()` intentionally raises
-`NotImplementedError` until the formal SDPC tile-index table is mapped.
-
-With the optional `image` dependency installed, candidate JPEG records can be
-decoded with Pillow:
-
-```python
-from opensqray import SDPCSlide
-
-with SDPCSlide("path/to/slide.sdpc") as slide:
-    label_image = slide.read_associated_image("label_candidate")
-    tile_image = slide.read_tile_image(level=0, tile_x=0, tile_y=0)
-```
-
-Decoded tile images still come from heuristic tile candidates. They are useful
-for local format research and preview tooling, but they are not a full
-OpenSlide-compatible region-read implementation.
-
-Use the optional SDK backend for reliable SDPC tile coordinates and region
-reads when the official runtime is locally available:
-
-```python
-from opensqray import SDPCSlide
-
-with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
-    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
-    region_bgra = slide.read_region_bgra_bytes((0, 0), 0, (512, 512))
-```
-
-With the optional `image` dependency installed, SDK-backed `read_region()`
-returns a Pillow image converted from the SDK's BGRA bytes:
-
-```python
-with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
-    region_image = slide.read_region((0, 0), 0, (512, 512))
-```
-
-The SDK backend is an adapter over a local official runtime. Its native
-libraries remain outside the public repository.
-
-## Backend API Coverage
-
-OpenSqray aims to provide an OpenSlide-like user experience for SDPC files, but
-the native backend is not yet equivalent to the official Sqray SDK or a full
-OpenSlide backend. Today there are two SDPC paths:
-
-* `backend="native"` is the public parser path. It has no proprietary runtime
-  dependency and is suitable for metadata inspection, associated-image
-  candidates, tile-index research, and preview-limited raw JPEG candidate
-  reads.
-* `backend="sdk"` is the opt-in official-runtime adapter. It is the current
-  reliable path for SDK-backed tile JPEG reads and BGRA region reads.
-
-| Capability | Native backend | SDK backend |
-| --- | --- | --- |
-| Metadata/properties | Supported | Supported, with SDK geometry available through `sdk-info` |
-| Level dimensions/downsamples | Inferred from parsed metadata | SDK-reported |
-| Associated images | Heuristic JPEG candidates | Not wrapped yet |
-| Tile JPEG by coordinate | Heuristic, preview-limited candidates | Supported through the SDK |
-| `read_region_bgra_bytes()` | Not implemented | Supported through the SDK |
-| `read_region()` | Raises `NotImplementedError` | Supported when Pillow is installed |
-| Color correction | Not implemented | SDK may support it, but OpenSqray does not wrap it yet |
-| Fluorescence/channels/focal planes | Not implemented | SDK may support them, but OpenSqray does not wrap them yet |
-| Full OpenSlide API parity | Not yet | Partial practical parity for tile and region reads |
-
-In short: native SDPC support is useful and public-safe, but it should not be
-treated as a production replacement for the official SDK's pixel APIs yet. Use
-the SDK backend when downstream code needs coordinate-accurate tile reads or
-OpenSlide-style region reads.
-
-Even when `backend="sdk"` is enabled, OpenSqray is not yet a full drop-in
-replacement for `openslide.OpenSlide`. The current facade intentionally covers
-the subset needed for metadata, tile JPEGs, and region reads:
-
-| OpenSlide-style interface | Current OpenSqray status |
-| --- | --- |
-| `close()` and context-manager usage | Supported |
-| `dimensions` | Supported |
-| `level_count` | Supported |
-| `level_dimensions` | Supported; native is inferred, SDK geometry is available through `sdk-info` |
-| `level_downsamples` | Supported as power-of-two inferred values |
-| `properties` | Supported as an OpenSqray string map, not the full OpenSlide property namespace |
-| `associated_images` | Candidate metadata map; not the standard OpenSlide decoded image mapping yet |
-| `read_region(location, level, size)` | SDK backend only, returns a Pillow image when `opensqray[image]` is installed |
-| `get_thumbnail()` | Not implemented |
-| OpenSlide error-latching semantics | Not implemented |
-| DeepZoom helpers | Not implemented |
-| Color correction / ICC handling | Not implemented |
-| Fluorescence, channels, focal planes, and other SDK-specific APIs | Not wrapped yet |
-
-If the product goal is a true OpenSlide-compatible SDPC reader, the next step is
-to build and test a dedicated compatibility layer against the public
-`openslide-python` API surface. The current SDK backend is the foundation for
-that layer, not the finished full-compatibility layer.
-
-## Quick API Tutorial
-
-Native metadata and candidate-tile workflow:
-
-```bash
-opensqray inspect path/to/slide.sdpc --compact
-opensqray tile-index path/to/slide.sdpc --preview-limit 30 --compact
-opensqray read-tile path/to/slide.sdpc \
-  --backend native \
-  --preview-limit 100 \
-  --level 0 --tile-x 0 --tile-y 0 \
-  --output tile-native.jpg
-```
-
-This path reads from candidate JPEG records discovered by the parser preview.
-It is useful for research and smoke checks, but it is not a full native
-`read_region()` implementation.
-
-SDK-backed workflow:
-
-```bash
-export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
-
-opensqray sdk-info path/to/slide.sdpc --compact
-opensqray read-tile path/to/slide.sdpc \
-  --backend sdk \
-  --level 0 --tile-x 0 --tile-y 0 \
-  --output tile-sdk.jpg
-```
-
-Python native metadata and candidate bytes:
-
-```python
-from opensqray import SDPCSlide
-
-with SDPCSlide("path/to/slide.sdpc") as slide:
-    print(slide.dimensions)
-    print(slide.level_dimensions)
     print(slide.properties["opensqray.backend"])
 
     tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
 ```
 
-Python SDK-backed tile and region reads:
+解码候选 JPEG 需要安装 `opensqray[image]`：
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc") as slide:
+    tile_image = slide.read_tile_image(level=0, tile_x=0, tile_y=0)
+```
+
+SDK 后端 region 读取：
 
 ```python
 from opensqray import SDPCSlide
@@ -333,63 +158,73 @@ with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
     tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
     region_bgra = slide.read_region_bgra_bytes((0, 0), 0, (512, 512))
     region_image = slide.read_region((0, 0), 0, (512, 512))
-    region_image.save("region.png")
 ```
 
-`read_region()` requires Pillow because OpenSqray converts the SDK's BGRA bytes
-to an RGBA image object.
+`read_region()` 会把 SDK 返回的 BGRA bytes 转成 Pillow RGBA image，因此需要安装 `opensqray[image]`。
 
-### SDPC Output Contract
+## 后端能力边界
 
-SDPC inspection emits versioned JSON with `schema_version="opensqray.sdpc.metadata.v1"`. The v1 contract keeps stable metadata fields separate from research diagnostics:
+OpenSqray 当前有两个 SDPC 路径：
 
-* Stable fields: `version`, `file_size`, `stored_file_size`, `file_size_matches_header`, `header_size`, `level_count`, `dimensions`, `tile_size`, `thumbnail_size`, `scan_magnification`, and `metadata_offset`.
-* Metadata fields: `metadata.device_id`, `metadata.acquired_at`, `metadata.scanner_model`, `metadata.objective`, and `metadata.embedded_strings`.
-* Diagnostics: `experimental`, `jpeg_streams`, `field_confidence`, and `validation.warnings`.
-* Associated image candidates: `associated_images.count` and `associated_images.records`.
-* Tile-grid candidates: `tile_index.status`, `tile_index.levels`, `tile_index.tiles_preview`, and `tile_index.missing_tiles_preview`.
+- `backend="native"`：公开 parser 路径，不依赖专有 runtime，适合元数据、associated image 候选、tile/index 研究和 preview-limited tile JPEG byte 读取。
+- `backend="sdk"`：可选官方 runtime adapter，适合需要坐标准确 tile JPEG 或 region read 的场景。
 
-The index research diagnostic emits
-`schema_version="opensqray.sdpc.index_research.v4"` and is intentionally
-separate from the stable metadata contract.
+| 能力 | Native 后端 | SDK 后端 |
+| --- | --- | --- |
+| SDPC 元数据 / properties | 支持 | 支持，并可通过 `sdk-info` 获取 SDK 几何信息 |
+| level dimensions / downsamples | 基于已解析信息推断 | SDK 几何信息可用 |
+| associated images | 启发式 JPEG 候选 | 尚未封装 |
+| 按坐标读取 tile JPEG | 启发式、受 preview 限制 | 支持 |
+| `read_region_bgra_bytes()` | 尚未实现 | 支持 |
+| `read_region()` | 抛出 `NotImplementedError` | 安装 Pillow 后支持 |
+| color correction / ICC | 尚未实现 | 尚未封装 |
+| fluorescence / channels / focal planes | 尚未实现 | 尚未封装 |
+| 完整 OpenSlide API 兼容 | 尚未达到 | 只覆盖 tile/region 相关子集 |
 
-`file_size_matches_header=false` is reported as a validation warning, not a hard parse failure.
+即使启用 SDK 后端，OpenSqray 目前也还不是 `openslide.OpenSlide` 的完整 drop-in replacement。当前 facade 覆盖了最常用的 metadata、tile JPEG 和 region read；`get_thumbnail()`、标准 OpenSlide associated image mapping、OpenSlide error-latching、DeepZoom helper、ICC/color correction 以及更多 SDK 专有能力仍在路线图中。
 
-## Development
+## 输出契约
 
-Run tests with the standard library test runner:
+SDPC inspection 输出版本化 JSON，当前 schema 为：
+
+```text
+opensqray.sdpc.metadata.v1
+```
+
+稳定字段与研究诊断字段会分开输出，避免下游把 reverse-engineering 证据误当作已确认格式协议。`index-research` 也使用独立 schema：
+
+```text
+opensqray.sdpc.index_research.v4
+```
+
+这些诊断结果用于格式研究，不应直接视为完整 SDPC tile directory。
+
+## 路线图
+
+- [x] 项目骨架、CLI、synthetic fixture 测试。
+- [x] SDPC metadata parser 与版本化 JSON 输出。
+- [x] associated image 候选发现与导出。
+- [x] tile-grid 候选与 index-research 诊断。
+- [x] `SDPCSlide` facade、Pillow 解码适配、SDK backend MVP。
+- [ ] 更完整的 SDPC tile directory 映射与跨样本验证。
+- [ ] OpenSlide-compatible compatibility layer。
+- [ ] thumbnail、associated image 标准映射、ICC/color correction。
+- [ ] 私有部署场景下的 SDK runtime 打包策略文档。
+
+## 开发
+
+运行测试：
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-The tests use synthetic fixtures. Do not commit local whole-slide samples.
+测试使用 synthetic fixtures，不依赖真实切片数据或专有 SDK。
 
-To validate ignored local SDPC samples under `data/` without copying or committing them:
+## 安全与数据边界
 
-```bash
-python3 tools/validate_local_samples.py --compact
-```
+OpenSqray 仓库只保存公开源码、测试 fixture 和文档，不包含真实切片样本、患者数据、专有 SDK 二进制文件或非公开实现。需要 SDK 后端时，请在自己的运行环境中配置合法 SDK runtime。
 
-Use `--scan-jpegs` only when you need a full valid-JPEG-record count for local research.
+## 许可证
 
-## Git Flow
-
-Development follows feature PR -> dev PR:
-
-1. Create work on `feature/<topic>`.
-2. Open feature PR into `dev`.
-3. After integration, open `dev` PR into `main`.
-4. Keep `main` as the public release branch.
-
-## Excluded Local Artifacts
-
-The following are intentionally ignored:
-
-* `sqrayslide_20251128_x64/` - internal SDK bundle.
-* `data/` - local slide samples.
-* local assistant/workflow directories such as `.codex/`, `.claude/`, `.agents/`, and `.trellis/`.
-
-## License
-
-No license has been selected yet. Until the repository owner adds a license, public visibility does not grant reuse rights.
+当前尚未选择开源许可证。仓库公开可见不代表授予使用、复制、分发或修改权利；正式复用前请等待仓库所有者补充许可证。
