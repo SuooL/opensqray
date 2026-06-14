@@ -23,6 +23,24 @@ def decode_jpeg_bytes(data: bytes) -> object:
     return image
 
 
+def image_from_bgra_bytes(data: bytes, size: tuple[int, int]) -> object:
+    """Create an RGBA Pillow image from BGRA bytes."""
+
+    width, height = size
+    expected = width * height * 4
+    if width <= 0 or height <= 0:
+        raise ValueError("image size must be positive")
+    if len(data) != expected:
+        raise ValueError(
+            f"BGRA byte length mismatch: expected {expected}, got {len(data)}"
+        )
+
+    image_module = _load_pillow_image_module()
+    image = image_module.frombytes("RGBA", size, data, "raw", "BGRA")
+    image.load()
+    return image
+
+
 def _load_pillow_image_module() -> object:
     try:
         return importlib.import_module("PIL.Image")

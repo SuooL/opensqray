@@ -15,6 +15,12 @@ from .sdpc import (
     is_sdpc,
     read_sdpc,
 )
+from .sdk_backend import (
+    SqraySDKError,
+    SqraySDKUnavailable,
+    inspect_sqray_sdk_slide,
+)
+from .slide import SDPCSlide
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
         return _tile_index(args)
     if args.command == "index-research":
         return _index_research(args)
+    if args.command == "sdk-info":
+        return _sdk_info(args)
+    if args.command == "read-tile":
+        return _read_tile(args)
 
     parser.error(f"unknown command: {args.command}")
     return 2
@@ -150,6 +160,51 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="emit compact JSON",
     )
+
+    sdk_info_parser = subparsers.add_parser(
+        "sdk-info",
+        help="inspect a slide through a locally configured Sqray SDK runtime",
+    )
+    sdk_info_parser.add_argument("path", type=Path)
+    _add_sdk_options(sdk_info_parser)
+    sdk_info_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="emit compact JSON",
+    )
+
+    read_tile_parser = subparsers.add_parser(
+        "read-tile",
+        help="write one SDPC tile JPEG",
+    )
+    read_tile_parser.add_argument("path", type=Path)
+    read_tile_parser.add_argument("--level", type=int, required=True)
+    read_tile_parser.add_argument("--tile-x", type=int, required=True)
+    read_tile_parser.add_argument("--tile-y", type=int, required=True)
+    read_tile_parser.add_argument("--output", required=True, type=Path)
+    read_tile_parser.add_argument(
+        "--backend",
+        choices=("native", "sdk"),
+        default="native",
+        help="tile read backend; sdk uses the optional Sqray SDK runtime",
+    )
+    read_tile_parser.add_argument(
+        "--preview-limit",
+        type=int,
+        default=50,
+        help="maximum JPEG preview records for the native backend",
+    )
+    read_tile_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="overwrite output if it exists",
+    )
+    read_tile_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="emit compact JSON",
+    )
+    _add_sdk_options(read_tile_parser)
 
     return parser
 
@@ -298,9 +353,111 @@ def _index_research(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sdk_info(args: argparse.Namespace) -> int:
+    path = args.path
+    if not path.exists():
+        print(f"opensqray: file not found: {path}", file=sys.stderr)
+        return 1
+    if not is_sdpc(path):
+        print("opensqray: Sqray SDK inspection is only supported for SDPC", file=sys.stderr)
+        return 2
+
+    try:
+        payload = inspect_sqray_sdk_slide(
+            path,
+            sdk_dir=args.sdk_dir,
+            lib_dir=args.sdk_lib_dir,
+        )
+    except (SqraySDKError, SqraySDKUnavailable, OSError) as exc:
+        print(f"opensqray: {exc}", file=sys.stderr)
+        return 2
+
+    _print_json(payload, compact=args.compact)
+    return 0
+
+
+def _read_tile(args: argparse.Namespace) -> int:
+    path = args.path
+    if not path.exists():
+        print(f"opensqray: file not found: {path}", file=sys.stderr)
+        return 1
+    if not is_sdpc(path):
+        print("opensqray: tile reads are only supported for SDPC", file=sys.stderr)
+        return 2
+    if args.preview_limit <= 0:
+        print("opensqray: --preview-limit must be positive", file=sys.stderr)
+        return 2
+
+    try:
+        with SDPCSlide(
+            path,
+            jpeg_preview_limit=args.preview_limit,
+            backend=args.backend,
+            sdk_dir=args.sdk_dir,
+            sdk_lib_dir=args.sdk_lib_dir,
+        ) as slide:
+            jpeg_bytes = slide.read_tile_jpeg_bytes(
+                level=args.level,
+                tile_x=args.tile_x,
+                tile_y=args.tile_y,
+            )
+    except (
+        KeyError,
+        SDPCFormatError,
+        SqraySDKError,
+        SqraySDKUnavailable,
+        OSError,
+        ValueError,
+    ) as exc:
+        print(f"opensqray: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        _write_output_bytes(args.output, jpeg_bytes, overwrite=args.overwrite)
+    except OSError as exc:
+        print(f"opensqray: {exc}", file=sys.stderr)
+        return 2
+
+    payload = {
+        "format": "sdpc",
+        "path": str(path),
+        "backend": args.backend,
+        "level": args.level,
+        "tile_x": args.tile_x,
+        "tile_y": args.tile_y,
+        "output": str(args.output),
+        "byte_length": len(jpeg_bytes),
+        "content_type": "image/jpeg",
+    }
+    _print_json(payload, compact=args.compact)
+    return 0
+
+
 def _print_json(payload: dict[str, object], *, compact: bool) -> None:
     indent = None if compact else 2
     print(json.dumps(payload, indent=indent, sort_keys=True))
+
+
+def _add_sdk_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--sdk-dir",
+        type=Path,
+        default=None,
+        help="Sqray SDK root containing lib/; overrides OPENSQRAY_SDK_DIR",
+    )
+    parser.add_argument(
+        "--sdk-lib-dir",
+        type=Path,
+        default=None,
+        help="Sqray SDK library directory; overrides OPENSQRAY_SDK_LIB_DIR",
+    )
+
+
+def _write_output_bytes(path: Path, data: bytes, *, overwrite: bool) -> None:
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"refusing to overwrite existing file: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
 
 
 if __name__ == "__main__":

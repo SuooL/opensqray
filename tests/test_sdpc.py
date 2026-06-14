@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 
 from opensqray.cli import main as cli_main
 from opensqray.sdpc import (
@@ -206,6 +207,113 @@ class SDPCParserTests(unittest.TestCase):
         self.assertEqual(payload["tiles_preview"][1]["tile_x"], 1)
         self.assertEqual(payload["tiles_preview"][1]["tile_y"], 0)
         self.assertEqual(payload["missing_tile_count"], 1697)
+
+    def test_cli_reads_native_tile_jpeg(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            output = Path(tmp_dir) / "tile.jpg"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = cli_main(
+                    [
+                        "read-tile",
+                        str(path),
+                        "--level",
+                        "0",
+                        "--tile-x",
+                        "1",
+                        "--tile-y",
+                        "0",
+                        "--output",
+                        str(output),
+                        "--compact",
+                    ]
+                )
+            output_bytes = output.read_bytes()
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(output_bytes, make_jpeg_fixture(672, 672, b"tile1"))
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["backend"], "native")
+            self.assertEqual(payload["byte_length"], len(output_bytes))
+
+    def test_cli_reads_sdk_tile_jpeg(self) -> None:
+        class FakeSlide:
+            def __init__(self, path, **kwargs):
+                self.path = path
+                self.kwargs = kwargs
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return None
+
+            def read_tile_jpeg_bytes(self, *, level, tile_x, tile_y):
+                return f"sdk:{level}:{tile_x}:{tile_y}".encode("ascii")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            output = Path(tmp_dir) / "sdk-tile.jpg"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with patch("opensqray.cli.SDPCSlide", FakeSlide):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = cli_main(
+                        [
+                            "read-tile",
+                            str(path),
+                            "--backend",
+                            "sdk",
+                            "--level",
+                            "0",
+                            "--tile-x",
+                            "3",
+                            "--tile-y",
+                            "4",
+                            "--output",
+                            str(output),
+                            "--sdk-lib-dir",
+                            str(Path(tmp_dir) / "sdk-lib"),
+                            "--compact",
+                        ]
+                    )
+            output_bytes = output.read_bytes()
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(output_bytes, b"sdk:0:3:4")
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["backend"], "sdk")
+            self.assertEqual(payload["byte_length"], len(b"sdk:0:3:4"))
+
+    def test_cli_inspects_sdk_geometry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with patch(
+                "opensqray.cli.inspect_sqray_sdk_slide",
+                return_value={"backend": "sqray_sdk", "level_count": 1},
+            ):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = cli_main(
+                        ["sdk-info", str(path), "--compact"]
+                    )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["backend"], "sqray_sdk")
+        self.assertEqual(payload["level_count"], 1)
 
     def test_reads_exact_sdpc_byte_range(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

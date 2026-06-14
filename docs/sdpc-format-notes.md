@@ -129,9 +129,14 @@ candidate byte access. The facade exposes:
 * raw JPEG bytes for associated-image candidates and tile candidates present in
   the current parser preview
 
-`SDPCSlide` does not claim reliable region reads. `read_region()` intentionally
-raises `NotImplementedError` until the formal SDPC tile-index table is mapped
-and region assembly is validated.
+With the default native backend, `SDPCSlide` does not claim reliable region
+reads. `read_region()` intentionally raises `NotImplementedError` until the
+formal SDPC tile-index table is mapped and region assembly is validated.
+
+When explicitly constructed with `backend="sdk"`, `SDPCSlide` delegates tile
+JPEG and BGRA region reads to a locally configured official Sqray SDK runtime.
+The SDK binaries are optional runtime dependencies and are not redistributed in
+the public repository.
 
 ## Optional Image Decoding
 
@@ -145,9 +150,11 @@ When the `image` optional dependency is installed, `SDPCSlide` can decode:
 * tile candidate JPEG records via `read_tile_image()` and
   `read_tile_image_by_sequence()`
 
-Decoded tile images inherit the same limitations as `tile_index`: they are
-heuristic candidate tiles from the current parser preview, not proof that a
-formal SDPC tile directory has been mapped. `read_region()` remains unsupported.
+Decoded tile images inherit the same limitations as `tile_index` when the
+native backend is used: they are heuristic candidate tiles from the current
+parser preview, not proof that a formal SDPC tile directory has been mapped.
+SDK-backed region reads use official SDK BGRA output and optional Pillow
+conversion.
 
 ## Index Research Diagnostics
 
@@ -194,7 +201,8 @@ Current local smoke observations:
 
 ## Current Boundaries
 
-OpenSqray currently treats formal tile-index table parsing, confirmed
-associated-image role classification, and region reads as experimental future
-work. The parser exposes conservative diagnostics first so later behavior can be
-validated rather than inferred too aggressively.
+OpenSqray currently treats formal native tile-index table parsing and confirmed
+associated-image role classification as experimental future work. SDK-backed
+tile and region reads are available only when a local official runtime is
+configured. The native parser exposes conservative diagnostics first so later
+behavior can be validated rather than inferred too aggressively.

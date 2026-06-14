@@ -126,6 +126,11 @@ segments and explain what is still unknown without claiming a full parser.
 
 ### M10: Confirmed Tile Map Prototype
 
+* Add an optional Sqray SDK backend so licensed local SDK runtimes can provide
+  reliable SDPC tile JPEG and BGRA region reads without vendoring proprietary
+  binaries in the public repository.
+* Expose SDK-backed tile reads through `SDPCSlide(..., backend="sdk")` and a
+  CLI tile extraction command.
 * Build an experimental tile-map object only after directory/table evidence
   links JPEG byte ranges to level and tile matrix coordinates.
 * Cross-check expected level grids, candidate table lengths, reconstructed
@@ -135,11 +140,14 @@ segments and explain what is still unknown without claiming a full parser.
 * Keep the existing heuristic row-major tile preview as a fallback diagnostic,
   clearly separated from any parsed table.
 
-M10 is complete when a parsed/experimental tile map can be produced for validated
-samples and fails closed when table evidence is incomplete or contradictory.
+M10 is complete when SDK-backed tile access is usable from Python and CLI, and
+native parsed/experimental tile maps can be produced for validated samples while
+failing closed when table evidence is incomplete or contradictory.
 
 ### M11: Pixel Access and Region Reads
 
+* For SDK-backed slides, delegate region reads to the official SDK and expose
+  raw BGRA bytes plus optional Pillow RGBA conversion.
 * Use parsed tile maps and optional image decoding to assemble `read_region`.
 * Match OpenSlide-like top-left coordinate conventions where practical.
 * Handle edge padding, level selection, bounds, and missing-tile behavior

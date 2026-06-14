@@ -6,7 +6,7 @@ This repository intentionally does not vendor proprietary Sqray SDK files or loc
 
 ## Status
 
-Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes, and optional Pillow decoding for candidate JPEG records. Region extraction, formal tile-index table parsing, and color correction are planned but not claimed as supported yet.
+Alpha. Current SDPC support covers metadata inspection, heuristic associated-image JPEG candidate extraction, heuristic tile-grid candidate inspection, an OpenSlide-like SDPC facade for metadata plus raw JPEG candidate bytes, optional Pillow decoding, and an optional Sqray SDK backend for reliable SDPC tile JPEG and BGRA region reads when a local SDK runtime is configured. Formal native tile-index table parsing and color correction are still research work.
 
 ## Install
 
@@ -35,6 +35,29 @@ python -m pip install -e ".[image]"
 Image decoding uses Pillow and is only needed when calling decoded image APIs.
 Core SDPC metadata, JPEG record inspection, and raw JPEG byte access do not
 require Pillow.
+
+Optional Sqray SDK backend:
+
+OpenSqray does not vendor or redistribute proprietary Sqray SDK binaries. If
+you have a licensed SDK runtime locally, point OpenSqray at its library
+directory:
+
+```bash
+export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
+# or:
+export OPENSQRAY_SDK_DIR=/path/to/sqrayslide
+```
+
+If the runtime needs extra native-library directories, set:
+
+```bash
+export OPENSQRAY_SDK_EXTRA_LIB_DIRS=/path/to/extra/libs
+```
+
+On macOS and Linux, the platform dynamic-library search path may still need to
+include the SDK directory for transitive dependencies. For private deployment,
+prefer a private wheel or Docker image that contains the SDK runtime with
+platform-appropriate rpaths/install names.
 
 ## CLI
 
@@ -97,6 +120,30 @@ for length-table candidates cumulative offset reconstruction and table-extent
 checks. Matches are diagnostic evidence for reverse engineering; they are not
 reported as a parsed SDPC tile directory.
 
+Inspect geometry through a locally configured Sqray SDK runtime:
+
+```bash
+opensqray sdk-info path/to/slide.sdpc
+```
+
+Write one tile JPEG through the native candidate backend:
+
+```bash
+opensqray read-tile path/to/slide.sdpc \
+  --level 0 --tile-x 0 --tile-y 0 \
+  --output tile.jpg
+```
+
+Write one tile JPEG through the official SDK backend:
+
+```bash
+opensqray read-tile path/to/slide.sdpc \
+  --backend sdk \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --level 0 --tile-x 0 --tile-y 0 \
+  --output tile.jpg
+```
+
 ## Python API
 
 Use `SDPCSlide` when downstream code wants OpenSlide-like metadata attributes
@@ -133,6 +180,28 @@ with SDPCSlide("path/to/slide.sdpc") as slide:
 Decoded tile images still come from heuristic tile candidates. They are useful
 for local format research and preview tooling, but they are not a full
 OpenSlide-compatible region-read implementation.
+
+Use the optional SDK backend for reliable SDPC tile coordinates and region
+reads when the official runtime is locally available:
+
+```python
+from opensqray import SDPCSlide
+
+with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
+    tile_jpeg = slide.read_tile_jpeg_bytes(level=0, tile_x=0, tile_y=0)
+    region_bgra = slide.read_region_bgra_bytes((0, 0), 0, (512, 512))
+```
+
+With the optional `image` dependency installed, SDK-backed `read_region()`
+returns a Pillow image converted from the SDK's BGRA bytes:
+
+```python
+with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
+    region_image = slide.read_region((0, 0), 0, (512, 512))
+```
+
+The SDK backend is an adapter over a local official runtime. Its native
+libraries remain outside the public repository.
 
 ### SDPC Output Contract
 
