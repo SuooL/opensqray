@@ -152,7 +152,7 @@ formal SDPC tile directory has been mapped. `read_region()` remains unsupported.
 ## Index Research Diagnostics
 
 M6 adds a diagnostic scanner for reverse-engineering the formal SDPC index
-layout. It emits `schema_version="opensqray.sdpc.index_research.v3"` and is
+layout. It emits `schema_version="opensqray.sdpc.index_research.v4"` and is
 separate from the stable metadata contract.
 
 The scanner:
@@ -168,6 +168,10 @@ The scanner:
 * adds a `length_reconstruction` diagnostic for byte-length tables, checking
   whether cumulative lengths anchored at the first matched preview JPEG offset
   reproduce the observed preview offsets and end offsets
+* adds a `length_table_extent` diagnostic for byte-length tables, checking how
+  many packed values fit from the candidate offset to the end of the current
+  non-JPEG search window and whether that count equals an expected pyramid
+  level tile count
 
 These matches can help identify where SDPC might store offset or directory
 tables, but they are not a parsed tile directory. A match can be coincidental,
@@ -179,12 +183,14 @@ Current local smoke observations:
   the default preview windows.
 * `N067102_8.sdpc`: a `uint32le` run matching 28 previewed tile JPEG byte
   lengths was found in the gap after the associated-image candidates and before
-  the first tile JPEG candidate. In v3 diagnostics, the matched preview lengths
-  can be cumulatively reconstructed into the observed preview JPEG offsets,
-  while the bytes immediately after the matched preview run also look like
-  additional little-endian length-like values. This is useful evidence for
-  further reverse engineering, but it is not yet enough to claim a formal tile
-  index parser.
+  the first tile JPEG candidate. In v4 diagnostics, the matched preview lengths
+  can be cumulatively reconstructed into the observed preview JPEG offsets. The
+  byte range from the candidate table offset to the first tile JPEG can contain
+  19,136 `uint32le` values, which matches the header-derived expected tile
+  count for level 0 (`92 x 208`). This is strong structural evidence for a
+  level-0 length table, but it is not yet enough to claim a formal tile index
+  parser because coordinate fields and table boundaries beyond this window are
+  still unmapped.
 
 ## Current Boundaries
 

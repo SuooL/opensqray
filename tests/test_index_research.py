@@ -147,6 +147,33 @@ class SDPCIndexResearchTests(unittest.TestCase):
             fixture["tile_offsets"],
         )
         self.assertEqual(reconstruction["confidence"], "diagnostic")
+        extent = candidate["length_table_extent"]
+        self.assertEqual(extent["status"], "candidate")
+        self.assertEqual(
+            extent["strategy"],
+            "candidate_offset_to_search_window_end_value_slots",
+        )
+        self.assertEqual(extent["value_width"], 4)
+        self.assertEqual(extent["byte_length_to_window_end"], 100)
+        self.assertEqual(extent["value_slots_to_window_end"], 25)
+        self.assertEqual(extent["trailing_bytes_to_window_end"], 0)
+        self.assertEqual(extent["candidate_match_count"], 3)
+        self.assertEqual(extent["unpreviewed_value_slots"], 22)
+        self.assertTrue(extent["matches_any_expected_level_tile_count"])
+        self.assertEqual(
+            extent["expected_tile_level_matches"],
+            [
+                {
+                    "level": 0,
+                    "expected_tiles": 25,
+                    "grid": {"columns": 5, "rows": 5},
+                    "dimensions": {"width": 3360, "height": 3360},
+                    "first_sequence_index": 0,
+                    "last_sequence_index": 24,
+                }
+            ],
+        )
+        self.assertEqual(extent["confidence"], "diagnostic")
 
     def test_length_reconstruction_reports_non_adjacent_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

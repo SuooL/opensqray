@@ -62,9 +62,9 @@ def make_adjacent_tile_length_table_fixture(path: Path) -> dict[str, object]:
     data[:12] = b"SQ1.1.9.0430"
     struct.pack_into("<I", data, 0x12, 156)
     struct.pack_into("<I", data, 0x16, len(data))
-    struct.pack_into("<I", data, 0x26, 4)
-    struct.pack_into("<I", data, 0x2A, 26880)
-    struct.pack_into("<I", data, 0x2E, 21504)
+    struct.pack_into("<I", data, 0x26, 1)
+    struct.pack_into("<I", data, 0x2A, 3360)
+    struct.pack_into("<I", data, 0x2E, 3360)
     struct.pack_into("<I", data, 0x32, 672)
     struct.pack_into("<I", data, 0x36, 672)
     struct.pack_into("<I", data, 0x3A, 302)
