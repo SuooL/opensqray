@@ -33,11 +33,21 @@ class FakeSqrayLibrary:
         self.sqrayslide_close = FakeFunction(self._close)
         self.sqrayslide_free_memory = FakeFunction(self._free_memory)
         self.sqrayslide_get_tile_size = FakeFunction(self._get_tile_size)
+        self.sqrayslide_get_mpp = FakeFunction(self._get_mpp)
+        self.sqrayslide_get_magnification = FakeFunction(self._get_magnification)
+        self.sqrayslide_get_barcode = FakeFunction(self._get_barcode)
         self.sqrayslide_get_level_count = FakeFunction(self._get_level_count)
         self.sqrayslide_get_level_size = FakeFunction(self._get_level_size)
         self.sqrayslide_get_level_tile_count = FakeFunction(
             self._get_level_tile_count
         )
+        self.sqrayslide_get_level_downsample = FakeFunction(
+            self._get_level_downsample
+        )
+        self.sqrayslide_get_best_level_for_downsample = FakeFunction(
+            self._get_best_level_for_downsample
+        )
+        self.sqrayslide_read_label_jpeg = FakeFunction(self._read_label_jpeg)
         self.sqrayslide_read_tile_jpeg = FakeFunction(self._read_tile_jpeg)
         self.sqrayslide_read_region_bgra = FakeFunction(self._read_region_bgra)
 
@@ -55,6 +65,16 @@ class FakeSqrayLibrary:
         width_ptr._obj.value = 544
         height_ptr._obj.value = 448
 
+    def _get_mpp(self, handle, x_ptr, y_ptr):
+        x_ptr._obj.value = 0.25
+        y_ptr._obj.value = 0.25
+
+    def _get_magnification(self, handle, magnification_ptr):
+        magnification_ptr._obj.value = 40.0
+
+    def _get_barcode(self, handle):
+        return b"barcode-1"
+
     def _get_level_count(self, handle):
         return 2
 
@@ -65,6 +85,30 @@ class FakeSqrayLibrary:
     def _get_level_tile_count(self, handle, level, columns_ptr, rows_ptr):
         columns_ptr._obj.value = 92 // (2 ** level)
         rows_ptr._obj.value = 208 // (2 ** level)
+
+    def _get_level_downsample(self, handle, level):
+        return float(4**level)
+
+    def _get_best_level_for_downsample(self, handle, downsample):
+        return 1 if downsample >= 4 else 0
+
+    def _read_label_jpeg(
+        self,
+        handle,
+        image_type,
+        width_ptr,
+        height_ptr,
+        data_ptr,
+        data_size_ptr,
+    ):
+        data = bytes([0xFF, 0xD8, image_type, 0xFF, 0xD9])
+        buffer = (ctypes.c_ubyte * len(data)).from_buffer_copy(data)
+        self.buffers.append(buffer)
+        width_ptr._obj.value = 100 + image_type
+        height_ptr._obj.value = 200 + image_type
+        data_ptr._obj.value = ctypes.cast(buffer, ctypes.c_void_p).value
+        data_size_ptr._obj.value = len(data)
+        return True
 
     def _read_tile_jpeg(self, handle, dest_ptr, tile_x, tile_y, level):
         data = bytes([0xFF, 0xD8, level, tile_x, tile_y, 0xFF, 0xD9])
@@ -99,6 +143,14 @@ class SqraySDKBackendTests(unittest.TestCase):
         level_count = slide.level_count
         level_size = slide.level_size(0)
         level_tile_count = slide.level_tile_count(0)
+        level_downsample = slide.level_downsample(1)
+        best_level = slide.best_level_for_downsample(4)
+        mpp = slide.mpp
+        magnification = slide.magnification
+        barcode = slide.barcode
+        associated_size, associated_bytes = slide.read_associated_jpeg_bytes(
+            "thumbnail"
+        )
         slide.close()
 
         self.assertEqual(tile_bytes, b"\xff\xd8\x00\x01\x02\xff\xd9")
@@ -108,6 +160,13 @@ class SqraySDKBackendTests(unittest.TestCase):
         self.assertEqual(level_count, 2)
         self.assertEqual(level_size, (50048, 93184))
         self.assertEqual(level_tile_count, (92, 208))
+        self.assertEqual(level_downsample, 4.0)
+        self.assertEqual(best_level, 1)
+        self.assertEqual(mpp, (0.25, 0.25))
+        self.assertEqual(magnification, 40.0)
+        self.assertEqual(barcode, "barcode-1")
+        self.assertEqual(associated_size, (101, 201))
+        self.assertEqual(associated_bytes, b"\xff\xd8\x01\xff\xd9")
         self.assertTrue(fake_library.closed)
 
     def test_rejects_failed_open(self) -> None:
@@ -126,6 +185,10 @@ class SqraySDKBackendTests(unittest.TestCase):
         self.assertEqual(payload["backend"], "sqray_sdk")
         self.assertEqual(payload["tile_size"], {"width": 544, "height": 448})
         self.assertEqual(payload["level_count"], 2)
+        self.assertEqual(payload["mpp"], {"x": 0.25, "y": 0.25})
+        self.assertEqual(payload["magnification"], 40.0)
+        self.assertEqual(payload["barcode"], "barcode-1")
+        self.assertEqual(payload["levels"][1]["downsample"], 4.0)
         self.assertEqual(
             payload["levels"][0]["tile_grid"],
             {"columns": 92, "rows": 208},
