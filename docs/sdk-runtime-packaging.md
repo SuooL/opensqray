@@ -139,7 +139,11 @@ release:
 Current loader support:
 
 - Windows DLL search directory registration via `os.add_dll_directory`.
-- Linux dependency discovery includes versioned names such as `.so.17`.
+- Linux preloads only the Sqray SDK service's required soname dependencies.
+  It intentionally avoids loading every `.so` in the SDK directory because the
+  official Linux bundle contains duplicate library copies such as
+  `libavcodec.so`, `libavcodec.so.58`, and `libavcodec.so.58.111.100`; loading
+  all of them can trigger native shutdown crashes.
 - macOS skips versioned dylib aliases during preload to reduce duplicate-load
   noise.
 

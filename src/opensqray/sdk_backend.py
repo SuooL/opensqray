@@ -29,6 +29,21 @@ SDK_ASSOCIATED_IMAGE_TYPES = {
 }
 
 _WINDOWS_DLL_DIRECTORY_HANDLES: list[Any] = []
+_LINUX_SDK_PRELOAD_LIBRARY_NAMES = (
+    "libavutil.so.56",
+    "libswresample.so.3",
+    "libx264.so.148",
+    "libx265.so.79",
+    "libavcodec.so.58",
+    "libofstd.so.17",
+    "liboflog.so.17",
+    "libdcmdata.so.17",
+    "libHevc.so",
+    "libTJpg.so",
+    "libsqrayslidebase.so",
+    "libsqrayslidedcm.so",
+    "libsqrayslidesdpc.so",
+)
 
 
 class SqraySDKUnavailable(RuntimeError):
@@ -384,6 +399,15 @@ def _resolve_lib_dir(
 
 def _preload_dependencies(lib_dir: Path) -> None:
     _register_windows_dll_directory(lib_dir)
+    if platform.system() == "Linux":
+        for extra in _extra_lib_dirs():
+            if extra.is_dir():
+                for library in _linux_preload_libraries(extra):
+                    _try_preload(library)
+        for library in _linux_preload_libraries(lib_dir):
+            _try_preload(library)
+        return
+
     for extra in _extra_lib_dirs():
         if extra.is_dir():
             _register_windows_dll_directory(extra)
@@ -393,6 +417,16 @@ def _preload_dependencies(lib_dir: Path) -> None:
         if library.name == _service_library_name():
             continue
         _try_preload(library)
+
+
+def _linux_preload_libraries(lib_dir: Path) -> list[Path]:
+    """Return Linux SDK dependencies without loading duplicate soname copies."""
+
+    return [
+        lib_dir / name
+        for name in _LINUX_SDK_PRELOAD_LIBRARY_NAMES
+        if (lib_dir / name).is_file()
+    ]
 
 
 def _extra_lib_dirs() -> list[Path]:

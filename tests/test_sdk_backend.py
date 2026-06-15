@@ -10,6 +10,7 @@ from opensqray.sdk_backend import (
     SqraySDKSlide,
     SqraySDKUnavailable,
     _dynamic_libraries,
+    _linux_preload_libraries,
     _platform_runtime_tag,
     _resolve_lib_dir,
     inspect_sqray_sdk_slide,
@@ -174,6 +175,35 @@ class SqraySDKBackendTests(unittest.TestCase):
                 libraries = _dynamic_libraries(lib_dir)
 
         self.assertEqual(libraries, [plain, versioned])
+
+    def test_linux_preload_libraries_avoid_duplicate_sdk_soname_copies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lib_dir = Path(tmp_dir)
+            for name in (
+                "libavcodec.so",
+                "libavcodec.so.58",
+                "libavcodec.so.58.111.100",
+                "libavutil.so",
+                "libavutil.so.56",
+                "libavutil.so.56.60.100",
+                "libswresample.so.3",
+                "libsqrayslidebase.so",
+                "libsqrayslideservice.so",
+                "libavdevice.so.58",
+            ):
+                (lib_dir / name).touch()
+
+            libraries = _linux_preload_libraries(lib_dir)
+
+        self.assertEqual(
+            libraries,
+            [
+                lib_dir / "libavutil.so.56",
+                lib_dir / "libswresample.so.3",
+                lib_dir / "libavcodec.so.58",
+                lib_dir / "libsqrayslidebase.so",
+            ],
+        )
 
     def test_reads_sdk_geometry_tile_jpeg_and_region_bytes(self) -> None:
         fake_library = FakeSqrayLibrary()
