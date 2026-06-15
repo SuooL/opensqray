@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from opensqray import OpenSqraySlide, is_sdpc
+import opensqray
 from opensqray.compat import (
     PROPERTY_NAME_MPP_X,
     PROPERTY_NAME_OBJECTIVE_POWER,
@@ -85,6 +86,14 @@ class FakeSDKSlide:
 
 
 class OpenSqraySlideCompatTests(unittest.TestCase):
+    def test_exports_openslide_style_property_constants(self) -> None:
+        self.assertEqual(opensqray.PROPERTY_NAME_VENDOR, "openslide.vendor")
+        self.assertEqual(opensqray.PROPERTY_NAME_MPP_X, "openslide.mpp-x")
+        self.assertEqual(
+            opensqray.PROPERTY_NAME_OBJECTIVE_POWER,
+            "openslide.objective-power",
+        )
+
     def test_sdpc_signature_detection(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             sdpc_path = Path(tmp_dir) / "sample.sdpc"

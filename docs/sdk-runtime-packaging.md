@@ -152,6 +152,17 @@ validator described in [SDK Runtime Validation](sdk-runtime-validation.md). A
 wheel is not validated by import success alone; it must pass region, tile,
 repeat-read, parallel batch, and throughput checks on a real SDPC file.
 
+OpenSqray also includes a static layout checker for private runtime packages:
+
+```bash
+python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+```
+
+The checker verifies the platform directory and service library name without
+loading native code. It is a packaging preflight, not a replacement for the real
+SDK runtime validator.
+
 ## Wrapper `.so` / Native Shim Option
 
 A thin native shim such as `libopensqray_sdk` is a reasonable later milestone.

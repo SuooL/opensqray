@@ -6,6 +6,7 @@ import unittest
 
 from opensqray import (
     RegionRequest,
+    iter_regions,
     iter_patch_requests,
     read_regions,
     recommended_worker_count,
@@ -101,6 +102,40 @@ class BatchReadTests(unittest.TestCase):
     def test_read_regions_rejects_invalid_workers(self) -> None:
         with self.assertRaisesRegex(ValueError, "workers"):
             read_regions("slide.sdpc", [], workers=0, slide_factory=FakeSlide)
+
+    def test_iter_regions_streams_chunks_and_preserves_keys(self) -> None:
+        FakeSlide.opened_paths = []
+        requests = (
+            RegionRequest((index, 0), 0, (1, 1), key=f"patch-{index}")
+            for index in range(5)
+        )
+
+        results = list(
+            iter_regions(
+                "slide.sdpc",
+                requests,
+                workers=2,
+                chunk_size=2,
+                slide_factory=FakeSlide,
+            )
+        )
+
+        self.assertEqual([result.key for result in results], [
+            "patch-0",
+            "patch-1",
+            "patch-2",
+            "patch-3",
+            "patch-4",
+        ])
+        self.assertEqual(
+            [result.image["location"] for result in results],
+            [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)],
+        )
+        self.assertEqual(len(FakeSlide.opened_paths), 5)
+
+    def test_iter_regions_rejects_invalid_chunk_size(self) -> None:
+        with self.assertRaisesRegex(ValueError, "chunk_size"):
+            list(iter_regions("slide.sdpc", [], chunk_size=0, slide_factory=FakeSlide))
 
     def test_recommended_worker_count_is_bounded(self) -> None:
         self.assertEqual(recommended_worker_count(slide_count=1, max_workers=1), 1)

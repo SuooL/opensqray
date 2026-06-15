@@ -18,6 +18,7 @@ from opensqray.image_adapter import ImageDecodeUnavailable  # noqa: E402
 from opensqray.sdk_backend import SqraySDKError, SqraySDKUnavailable  # noqa: E402
 from opensqray.sdk_validation import (  # noqa: E402
     OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION,
+    summarize_sdk_validation,
     validate_sdk_runtime,
 )
 
@@ -54,12 +55,23 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="optional path to also write the JSON validation report",
     )
+    parser.add_argument(
+        "--summary-output",
+        type=Path,
+        default=None,
+        help="optional path to write a sanitized validation summary",
+    )
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     args = parser.parse_args(argv)
 
     if not args.path.exists():
         payload = _failure_payload(args.path, f"file not found: {args.path}")
-        _emit(payload, compact=args.compact, output=args.output)
+        _emit(
+            payload,
+            compact=args.compact,
+            output=args.output,
+            summary_output=args.summary_output,
+        )
         return 1
 
     try:
@@ -81,10 +93,20 @@ def main(argv: list[str] | None = None) -> int:
         ValueError,
     ) as exc:
         payload = _failure_payload(args.path, str(exc))
-        _emit(payload, compact=args.compact, output=args.output)
+        _emit(
+            payload,
+            compact=args.compact,
+            output=args.output,
+            summary_output=args.summary_output,
+        )
         return 2
 
-    _emit(payload, compact=args.compact, output=args.output)
+    _emit(
+        payload,
+        compact=args.compact,
+        output=args.output,
+        summary_output=args.summary_output,
+    )
     return 0 if payload["status"] == "passed" else 2
 
 
@@ -111,13 +133,24 @@ def _failure_payload(path: Path, error: str) -> dict[str, Any]:
     }
 
 
-def _emit(payload: dict[str, Any], *, compact: bool, output: Path | None) -> None:
+def _emit(
+    payload: dict[str, Any],
+    *,
+    compact: bool,
+    output: Path | None,
+    summary_output: Path | None,
+) -> None:
     indent = None if compact else 2
     text = json.dumps(payload, indent=indent, sort_keys=True)
     print(text)
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text + "\n", encoding="utf-8")
+    if summary_output is not None:
+        summary_output.parent.mkdir(parents=True, exist_ok=True)
+        summary = summarize_sdk_validation(payload)
+        summary_text = json.dumps(summary, indent=indent, sort_keys=True)
+        summary_output.write_text(summary_text + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

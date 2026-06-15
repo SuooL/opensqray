@@ -19,7 +19,7 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 - Associated image 候选：可列出和导出 label/macro 等候选 JPEG 资源。
 - Tile index 研究工具：提供 row-major 候选 tile 映射和 index-table 诊断输出。
 - `OpenSqraySlide`：SDK-backed OpenSlide-like 兼容类，支持 SDPC 上的 `read_region()`、`get_thumbnail()`、`associated_images`、level metadata 和 properties。
-- 批量 patch 读取：`RegionRequest`、`iter_patch_requests()` 和 `read_regions()` 支持显式 worker 并行，每个 worker 使用独立 SDK slide handle。
+- 批量 patch 读取：`RegionRequest`、`iter_patch_requests()`、`read_regions()` 和 `iter_regions()` 支持显式 worker 并行，每个 worker 使用独立 SDK slide handle。
 - 研究型 `SDPCSlide` facade：提供 metadata、candidate JPEG byte、SDK tile/region 低层接口。
 - 可选 Pillow 解码：安装 `opensqray[image]` 后可将候选 JPEG 或 SDK BGRA region 转成图像对象。
 - 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
@@ -93,6 +93,7 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 OpenSqray 不随仓库分发、复制或再打包任何专有 SDK 二进制文件。
 
 私有部署时的 SDK runtime wheel / native library 打包建议见 [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md)。每个平台的实际验证流程见 [SDK Runtime Validation](docs/sdk-runtime-validation.md)。大规模 patch 处理建议见 [High-Throughput Patch Extraction Plan](docs/performance-plan.md)。
+OpenSlide API 边界见 [OpenSlide Compatibility Matrix](docs/openslide-compatibility.md)。
 
 ## 快速开始
 
@@ -155,6 +156,31 @@ python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
 
 该验证会检查 metadata、associated images、thumbnail、tile JPEG、多个 region、重复读取 hash 一致性、串行/并行 batch 一致性和 patch throughput；不是只做 smoke test。
 
+保存 sanitized summary 供平台矩阵或 release notes 使用：
+
+```bash
+python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --summary-output /tmp/opensqray-validation-summary.json
+```
+
+检查私有 runtime package layout：
+
+```bash
+python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+```
+
+运行 patch benchmark：
+
+```bash
+python3 tools/benchmark_patch_reads.py path/to/slide.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --patch-size 256 \
+  --count 128 \
+  --workers 4
+```
+
 检查 SVS 等 OpenSlide 支持的文件：
 
 ```bash
@@ -207,6 +233,18 @@ with OpenSqraySlide("path/to/slide.sdpc") as slide:
         level=0,
     )
     patches = slide.read_regions(requests, workers=4)
+```
+
+流式读取大量 patch：
+
+```python
+from opensqray import OpenSqraySlide, iter_patch_requests
+
+with OpenSqraySlide("path/to/slide.sdpc") as slide:
+    requests = iter_patch_requests(slide.dimensions, patch_size=512, stride=512)
+    for result in slide.iter_regions(requests, workers=4, chunk_size=64):
+        patch_key = result.key
+        patch = result.image
 ```
 
 `read_regions()` 的并行路径会为每个 worker 打开独立 SDK handle，避免在 vendor SDK 线程安全语义尚未公开时共享同一个 handle。处理上万张切片时，建议外层按 slide 做进程级并行，内层每张 slide 使用少量 workers。
@@ -295,8 +333,8 @@ opensqray.sdpc.index_research.v4
 - [x] tile-grid 候选、length-table reconstruction 与 index-research v4 诊断。
 - [x] `SDPCSlide` facade、Pillow 解码适配、SDK backend MVP。
 - [x] SDK-backed `OpenSqraySlide` compatibility layer：`read_region()`、`get_thumbnail()`、associated images、level metadata。
-- [x] SDK-backed 批量 patch 读取 helper 与并行 worker 模型。
-- [x] 私有 SDK runtime 打包策略、大规模 patch 性能计划与实际 runtime validator。
+- [x] SDK-backed 批量 patch 读取、streaming helper、benchmark tool 与并行 worker 模型。
+- [x] 私有 SDK runtime 打包策略、runtime layout checker、大规模 patch 性能计划与实际 runtime validator。
 - [x] macOS Apple Silicon 与 Linux x86_64 真实 SDK + 公开 SDPC 样本验证。
 - [ ] Windows x86_64、Linux arm64、macOS Intel 的真实 runtime 验证。
 - [ ] confirmed native tile map 与 native `read_region()`，前提是 SDPC tile directory 证据足够。

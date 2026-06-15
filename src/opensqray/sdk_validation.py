@@ -182,6 +182,61 @@ def validate_sdk_runtime(
     return payload
 
 
+def summarize_sdk_validation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a sanitized validation summary for release notes or matrices."""
+
+    checks = payload.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+    geometry = checks.get("geometry", {})
+    if not isinstance(geometry, dict):
+        geometry = {}
+    associated = checks.get("associated_images", {})
+    if not isinstance(associated, dict):
+        associated = {}
+    tile_jpegs = checks.get("tile_jpegs", {})
+    if not isinstance(tile_jpegs, dict):
+        tile_jpegs = {}
+    serial_regions = checks.get("serial_regions", {})
+    if not isinstance(serial_regions, dict):
+        serial_regions = {}
+    repeat_consistency = checks.get("repeat_consistency", [])
+    if not isinstance(repeat_consistency, list):
+        repeat_consistency = []
+    parallel_regions = checks.get("parallel_regions", {})
+    if not isinstance(parallel_regions, dict):
+        parallel_regions = {}
+    parallel_consistency = parallel_regions.get("consistency", {})
+    if not isinstance(parallel_consistency, dict):
+        parallel_consistency = {}
+    performance = checks.get("performance", {})
+    if not isinstance(performance, dict):
+        performance = {}
+
+    return {
+        "schema_version": "opensqray.sdk.validation_summary.v1",
+        "source_schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "platform": payload.get("platform", {}),
+        "configuration": payload.get("configuration", {}),
+        "error_count": len(payload.get("errors", [])),
+        "warning_count": len(payload.get("warnings", [])),
+        "dimensions": geometry.get("dimensions"),
+        "level_count": geometry.get("level_count"),
+        "associated_count": associated.get("count"),
+        "tile_jpeg_count": tile_jpegs.get("count"),
+        "region_count": serial_regions.get("count"),
+        "repeat_matches": all(
+            bool(item.get("matches"))
+            for item in repeat_consistency
+            if isinstance(item, dict)
+        ),
+        "parallel_matches": parallel_consistency.get("matches"),
+        "regions_per_second": performance.get("regions_per_second"),
+        "duration_seconds": payload.get("duration_seconds"),
+    }
+
+
 def _validate_geometry(slide: object, errors: list[str]) -> dict[str, Any]:
     dimensions = _tuple_size(getattr(slide, "dimensions"))
     level_count = int(getattr(slide, "level_count"))

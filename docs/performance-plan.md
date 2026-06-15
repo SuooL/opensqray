@@ -11,11 +11,13 @@ use over aggressive shared-handle concurrency.
 - `RegionRequest(location, level, size, key=None)`
 - `iter_patch_requests(dimensions, patch_size, stride=..., level=...)`
 - `read_regions(path, requests, workers=..., sdk_dir=..., sdk_lib_dir=...)`
+- `iter_regions(path, requests, workers=..., chunk_size=..., sdk_dir=..., sdk_lib_dir=...)`
 - `recommended_worker_count(slide_count=..., max_workers=...)`
 
 `OpenSqraySlide` also exposes:
 
 - `slide.read_regions(requests, workers=...)`
+- `slide.iter_regions(requests, workers=..., chunk_size=...)`
 
 Single-region behavior stays OpenSlide-like:
 
@@ -53,6 +55,19 @@ with OpenSqraySlide("slide.sdpc") as slide:
         level=0,
     )
     for image in slide.read_regions(requests, workers=4):
+        ...
+```
+
+For large jobs, prefer streaming results by chunk:
+
+```python
+from opensqray import OpenSqraySlide, iter_patch_requests
+
+with OpenSqraySlide("slide.sdpc") as slide:
+    requests = iter_patch_requests(slide.dimensions, 512, stride=512)
+    for result in slide.iter_regions(requests, workers=4, chunk_size=64):
+        patch_id = result.key
+        image = result.image
         ...
 ```
 
@@ -142,11 +157,19 @@ The benchmark should distinguish:
 - JPEG encode/save cost when writing files
 - external model preprocessing cost
 
+OpenSqray includes a bounded benchmark helper:
+
+```bash
+python3 tools/benchmark_patch_reads.py data/20220514_145829_0.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --patch-size 256 \
+  --count 128 \
+  --workers 4 \
+  --chunk-size 32
+```
+
 ## Future Work
 
-- Add a streaming `iter_regions()` helper that yields `(request, image)` pairs
-  chunk by chunk.
 - Add optional NumPy output to reduce Pillow overhead in ML pipelines.
 - Add tile JPEG batch helpers for pipelines that can consume JPEG bytes.
-- Add a CLI benchmark tool for cross-platform runtime validation.
 - Revisit shared-handle threading only if the SDK vendor documents it as safe.

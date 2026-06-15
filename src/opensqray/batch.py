@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import islice
 import os
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Iterator, Sequence
 
 from .compat import OpenSqraySlide
 
@@ -24,6 +25,20 @@ class RegionRequest:
     level: int
     size: tuple[int, int]
     key: object | None = None
+
+
+@dataclass(frozen=True)
+class RegionResult:
+    """One streamed region-read result."""
+
+    request: RegionRequest
+    image: object
+
+    @property
+    def key(self) -> object | None:
+        """Return the original request key for downstream patch writers."""
+
+        return self.request.key
 
 
 RegionRequestLike = RegionRequest | tuple[tuple[int, int], int, tuple[int, int]]
@@ -129,6 +144,44 @@ def read_regions(
     if any(image is missing for image in results):
         raise RuntimeError("internal batch read error: missing region result")
     return results
+
+
+def iter_regions(
+    path: str | Path,
+    requests: Iterable[RegionRequestLike],
+    *,
+    workers: int | None = 1,
+    chunk_size: int = 64,
+    sdk_dir: str | Path | None = None,
+    sdk_lib_dir: str | Path | None = None,
+    slide_factory: SlideFactory | None = None,
+) -> Iterator[RegionResult]:
+    """Yield region images chunk by chunk while preserving request order.
+
+    This is the memory-bounded companion to ``read_regions()``. It does not
+    materialize the full request stream or the full image result set at once,
+    making it the preferred API for large patch extraction jobs.
+    """
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    _validate_workers(workers)
+
+    iterator = iter(requests)
+    while True:
+        chunk = [_coerce_request(item) for item in islice(iterator, chunk_size)]
+        if not chunk:
+            return
+        images = read_regions(
+            path,
+            chunk,
+            workers=workers,
+            sdk_dir=sdk_dir,
+            sdk_lib_dir=sdk_lib_dir,
+            slide_factory=slide_factory,
+        )
+        for request, image in zip(chunk, images):
+            yield RegionResult(request=request, image=image)
 
 
 def recommended_worker_count(
