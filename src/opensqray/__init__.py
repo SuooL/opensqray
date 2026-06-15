@@ -30,10 +30,15 @@ from .sdpc import (
     read_sdpc_byte_range,
 )
 from .sdk_backend import SqraySDKError, SqraySDKSlide, SqraySDKUnavailable
+from .sdk_validation import (
+    OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION,
+    validate_sdk_runtime,
+)
 from .slide import SDPCSlide
 
 __all__ = [
     "ImageDecodeUnavailable",
+    "OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION",
     "OpenSqraySlide",
     "SDPC_INDEX_RESEARCH_SCHEMA_VERSION",
     "SDPC_FIELD_CONFIDENCE",
@@ -56,4 +61,5 @@ __all__ = [
     "read_regions",
     "recommended_worker_count",
     "scan_sdpc_index_research",
+    "validate_sdk_runtime",
 ]

@@ -275,7 +275,7 @@ class SqraySDKSlide:
                 "Sqray SDK failed to read region "
                 f"at level={level}, location={location}, size={size}"
             )
-        return bytes(buffer)
+        return _force_opaque_bgra_bytes(bytes(buffer))
 
     def _open_slide(self) -> ctypes.c_void_p:
         status = ctypes.c_int()
@@ -591,3 +591,11 @@ def _size_dict(size: tuple[int, int]) -> dict[str, int]:
 
 def _grid_dict(grid: tuple[int, int]) -> dict[str, int]:
     return {"columns": grid[0], "rows": grid[1]}
+
+
+def _force_opaque_bgra_bytes(data: bytes) -> bytes:
+    """Normalize SDK alpha bytes for deterministic OpenSlide-like output."""
+
+    normalized = bytearray(data)
+    normalized[3::4] = b"\xff" * (len(normalized) // 4)
+    return bytes(normalized)

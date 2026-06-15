@@ -121,12 +121,16 @@ shows the SDK-backed path as the production SDPC pixel-read path.
   * `OpenSqraySlide.read_regions()`
 * Use one slide handle per worker for parallel reads until the vendor SDK
   documents shared-handle thread safety.
+* Add practical SDK runtime validation that checks region reads, tile JPEGs,
+  repeated-read stability, serial-vs-parallel batch consistency, and throughput
+  on real SDPC files.
 * Document private SDK runtime wheel strategy and large-scale patch extraction
   guidance.
 
 M8 is complete when batch patch APIs have unit tests, the loader can discover a
-private runtime package without vendoring binaries in the public repo, and docs
-describe the cross-platform packaging and throughput strategy.
+private runtime package without vendoring binaries in the public repo, practical
+runtime validation exists, and docs describe the cross-platform packaging,
+validation, and throughput strategy.
 
 ## Remaining Development Plan
 

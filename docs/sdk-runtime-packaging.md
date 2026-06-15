@@ -143,6 +143,11 @@ Current loader support:
 - macOS skips versioned dylib aliases during preload to reduce duplicate-load
   noise.
 
+Before any private runtime wheel is treated as usable, run the practical
+validator described in [SDK Runtime Validation](sdk-runtime-validation.md). A
+wheel is not validated by import success alone; it must pass region, tile,
+repeat-read, parallel batch, and throughput checks on a real SDPC file.
+
 ## Wrapper `.so` / Native Shim Option
 
 A thin native shim such as `libopensqray_sdk` is a reasonable later milestone.
