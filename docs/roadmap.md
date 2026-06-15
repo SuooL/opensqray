@@ -25,7 +25,8 @@ through the optional Sqray SDK-backed `OpenSqraySlide` path.
 * Practical SDK runtime validator and sanitized validation summaries for real
   SDPC files.
 * Runtime packaging strategy docs and high-throughput patch extraction plan.
-* Static private runtime package layout checker and runtime staging helper.
+* Static private runtime package layout checker, runtime staging helper, and
+  runtime-root discovery through `OPENSQRAY_SDK_RUNTIME_ROOT`.
 * OpenSlide compatibility matrix documenting supported, partial, and unclaimed
   behavior.
 
@@ -295,6 +296,8 @@ every supported platform instead of design-only claims.
   library, not the entire vendor SDK tree.
 * Use `tools/stage_sdk_runtime_package.py` to stage selected runtime libraries
   into an external private runtime package layout.
+* Use `OPENSQRAY_SDK_RUNTIME_ROOT` to validate staged/private runtime package
+  roots without manually selecting the platform `lib/` or `bin/` directory.
 * Run `tools/check_sdk_runtime_package.py` before building or publishing an
   internal runtime wheel.
 * Run the practical validator against every runtime wheel or shim artifact.

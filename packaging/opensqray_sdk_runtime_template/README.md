@@ -34,6 +34,12 @@ package root and copies selected runtime libraries into the platform directory.
 Keep the staged output outside the public repository unless a private packaging
 pipeline explicitly consumes it.
 
+At runtime, point OpenSqray at the staged root:
+
+```bash
+export OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime
+```
+
 Before building or publishing an internal runtime wheel, run:
 
 ```bash
