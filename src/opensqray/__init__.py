@@ -19,6 +19,7 @@ from .compat import (
     PROPERTY_NAME_MPP_Y,
     PROPERTY_NAME_OBJECTIVE_POWER,
     PROPERTY_NAME_VENDOR,
+    detect_format,
     is_sdpc,
     open_slide,
 )
@@ -90,6 +91,7 @@ __all__ = [
     "build_runtime_wheel",
     "check_runtime_package_layout",
     "decode_jpeg_bytes",
+    "detect_format",
     "image_from_bgra_bytes",
     "is_sdpc",
     "iter_regions",

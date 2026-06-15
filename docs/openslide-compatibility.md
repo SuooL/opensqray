@@ -9,6 +9,7 @@ OpenSlide Python behavior.
 | OpenSlide-style capability | OpenSqray support |
 | --- | --- |
 | `open_slide(path)` | SDPC paths return `OpenSqraySlide`; non-SDPC paths delegate to OpenSlide |
+| `detect_format(path)` | SDPC returns `sqray`; non-SDPC paths delegate to `openslide.OpenSlide.detect_format` when OpenSlide is available |
 | `dimensions` | Supported through SDK backend |
 | `level_count` | Supported through SDK backend |
 | `level_dimensions` | Supported through SDK backend |
