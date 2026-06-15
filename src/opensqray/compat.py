@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from .image_adapter import decode_jpeg_bytes, image_from_bgra_bytes
 from .openslide_adapter import OpenSlideUnavailable
@@ -44,6 +44,8 @@ class OpenSqraySlide:
         sdk_lib_dir: str | Path | None = None,
     ) -> None:
         self._path = Path(filename)
+        self._sdk_dir = sdk_dir
+        self._sdk_lib_dir = sdk_lib_dir
         self._info = read_sdpc(self._path)
         self._sdk_slide = SqraySDKSlide(
             self._path,
@@ -170,6 +172,40 @@ class OpenSqraySlide:
                 size=size,
             ),
             size,
+        )
+
+    def read_regions(
+        self,
+        requests: Iterable[object],
+        *,
+        workers: int | None = 1,
+    ) -> list[object]:
+        """Return many region images, optionally using parallel SDK handles."""
+
+        self._require_open()
+        if workers is None or workers == 1:
+            from .batch import RegionRequest, _coerce_request
+
+            images: list[object] = []
+            for request in requests:
+                normalized: RegionRequest = _coerce_request(request)
+                images.append(
+                    self.read_region(
+                        normalized.location,
+                        normalized.level,
+                        normalized.size,
+                    )
+                )
+            return images
+
+        from .batch import read_regions
+
+        return read_regions(
+            self._path,
+            requests,
+            workers=workers,
+            sdk_dir=self._sdk_dir,
+            sdk_lib_dir=self._sdk_lib_dir,
         )
 
     def get_thumbnail(self, size: tuple[int, int]) -> object:

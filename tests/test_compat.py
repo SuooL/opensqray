@@ -122,6 +122,12 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
                     properties = slide.properties
                     associated = slide.associated_images
                     region = slide.read_region((10, 20), 1, (2, 3))
+                    regions = slide.read_regions(
+                        [
+                            ((0, 0), 0, (1, 1)),
+                            ((2, 3), 1, (2, 2)),
+                        ]
+                    )
                     thumbnail = slide.get_thumbnail((128, 128))
                     best_level = slide.get_best_level_for_downsample(4)
                     tile = slide.read_tile_jpeg_bytes(level=0, tile_x=1, tile_y=2)
@@ -139,8 +145,18 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
         self.assertEqual(properties[PROPERTY_NAME_MPP_X], "0.25")
         self.assertEqual(properties["opensqray.backend"], "sdk")
         self.assertEqual(sorted(associated), ["label", "macro", "thumbnail"])
-        image_from_bgra.assert_called_once_with(b"bgra" * 6, (2, 3))
+        self.assertEqual(image_from_bgra.call_count, 3)
+        self.assertEqual(
+            image_from_bgra.call_args_list[0].args,
+            (b"bgra" * 6, (2, 3)),
+        )
+        self.assertEqual(image_from_bgra.call_args_list[1].args, (b"bgra", (1, 1)))
+        self.assertEqual(
+            image_from_bgra.call_args_list[2].args,
+            (b"bgra" * 4, (2, 2)),
+        )
         self.assertEqual(region, "region-image")
+        self.assertEqual(regions, ["region-image", "region-image"])
         self.assertEqual(thumbnail.size, (128, 128))
         self.assertEqual(best_level, 1)
         self.assertEqual(tile, b"tile:0:1:2")
