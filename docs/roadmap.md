@@ -20,9 +20,14 @@ through the optional Sqray SDK-backed `OpenSqraySlide` path.
   `properties`, `associated_images`, `read_region()`, `get_thumbnail()`,
   `get_best_level_for_downsample()`, and `read_tile_jpeg_bytes()`.
 * Batch patch helpers: `RegionRequest`, `iter_patch_requests()`,
-  `read_regions()`, and `OpenSqraySlide.read_regions()`.
-* Practical SDK runtime validator for real SDPC files.
+  `read_regions()`, `iter_regions()`, `OpenSqraySlide.read_regions()`, and
+  `OpenSqraySlide.iter_regions()`.
+* Practical SDK runtime validator and sanitized validation summaries for real
+  SDPC files.
 * Runtime packaging strategy docs and high-throughput patch extraction plan.
+* Static private runtime package layout checker.
+* OpenSlide compatibility matrix documenting supported, partial, and unclaimed
+  behavior.
 
 ### Validated
 
@@ -274,6 +279,8 @@ map, has focused tests, and no longer depends on heuristic tile order.
   release notes; do not commit SDK binaries or full slide data.
 * Keep source sync for remote validation through GitHub branches and PRs.
   `data/` and `sqrayslide_20251128_x64/` remain local ignored assets.
+* Use `tools/validate_sdk_runtime.py --summary-output` for sanitized platform
+  summaries.
 
 M13 is complete when the validation matrix has real pass/fail evidence for
 every supported platform instead of design-only claims.
@@ -286,6 +293,8 @@ every supported platform instead of design-only claims.
 * Consider a thin native shim after the Python wrapper API stabilizes.
 * Package only the minimal runtime dependency set needed by the service
   library, not the entire vendor SDK tree.
+* Run `tools/check_sdk_runtime_package.py` before building or publishing an
+  internal runtime wheel.
 * Run the practical validator against every runtime wheel or shim artifact.
 
 M14 is complete when private runtime artifacts can be installed without manual
@@ -296,6 +305,8 @@ SDK path setup and pass the same real-SDPC validation checks.
 * Decide which OpenSlide compatibility gaps are worth implementing for SDPC:
   error-latching semantics, DeepZoom helpers, ICC/color management, and
   optional multi-channel/focal-plane APIs.
+* Maintain `docs/openslide-compatibility.md` as the compatibility source of
+  truth.
 * Add only APIs with clear semantics on SDPC and tests that can run without
   publishing proprietary data.
 * Keep non-SDPC formats delegated to OpenSlide.

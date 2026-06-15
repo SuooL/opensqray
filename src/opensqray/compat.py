@@ -209,6 +209,27 @@ class OpenSqraySlide:
             sdk_lib_dir=self._sdk_lib_dir,
         )
 
+    def iter_regions(
+        self,
+        requests: Iterable[object],
+        *,
+        workers: int | None = 1,
+        chunk_size: int = 64,
+    ) -> Iterable[object]:
+        """Yield region results chunk by chunk for large patch jobs."""
+
+        self._require_open()
+        from .batch import iter_regions
+
+        return iter_regions(
+            self._path,
+            requests,
+            workers=workers,
+            chunk_size=chunk_size,
+            sdk_dir=self._sdk_dir,
+            sdk_lib_dir=self._sdk_lib_dir,
+        )
+
     def get_thumbnail(self, size: tuple[int, int]) -> object:
         """Return a thumbnail image constrained to ``size``."""
 

@@ -14,7 +14,9 @@ python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
   --workers 4 \
   --patch-size 256 \
   --patch-count 16 \
-  --repeat-count 2
+  --repeat-count 2 \
+  --output /tmp/opensqray-validation-full.json \
+  --summary-output /tmp/opensqray-validation-summary.json
 ```
 
 On Windows, pass the SDK `bin/` directory if you do not use `--sdk-dir`:
@@ -58,6 +60,13 @@ The validator checks:
 The report includes SHA-256 hashes for image and tile outputs so two platforms
 can be compared without committing slide data or image artifacts.
 
+Use `--summary-output` for sanitized platform matrices and release notes. The
+summary omits per-image hash lists and uses:
+
+```text
+opensqray.sdk.validation_summary.v1
+```
+
 ## Platform Matrix
 
 Each supported platform should run the same validator on the same public or
@@ -98,5 +107,6 @@ Use at least:
 - one large internal SDPC with many tiles
 - one edge-case SDPC from a different scanner/software version
 
-Do not commit full slide files or SDK binaries. Store validation reports outside
-the public repository, or attach sanitized summaries to internal release notes.
+Do not commit full slide files or SDK binaries. Store full validation reports
+outside the public repository, or attach sanitized summaries to internal release
+notes. See [Validation Result Summaries](validation-results/README.md).

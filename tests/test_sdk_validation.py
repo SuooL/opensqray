@@ -6,6 +6,7 @@ import unittest
 
 from opensqray import (
     OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION,
+    summarize_sdk_validation,
     validate_sdk_runtime,
 )
 
@@ -126,6 +127,39 @@ class SDKValidationTests(unittest.TestCase):
             payload["checks"]["performance"]["regions_per_second"],
             0,
         )
+
+    def test_summarizes_validation_payload_for_platform_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.sdpc"
+            path.write_bytes(b"SQ fake")
+
+            payload = validate_sdk_runtime(
+                path,
+                workers=2,
+                patch_size=64,
+                patch_count=4,
+                repeat_count=2,
+                slide_factory=FakeValidationSlide,
+            )
+            summary = summarize_sdk_validation(payload)
+
+        self.assertEqual(
+            summary["schema_version"],
+            "opensqray.sdk.validation_summary.v1",
+        )
+        self.assertEqual(
+            summary["source_schema_version"],
+            OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION,
+        )
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["error_count"], 0)
+        self.assertEqual(summary["warning_count"], 0)
+        self.assertEqual(summary["level_count"], 2)
+        self.assertEqual(summary["associated_count"], 2)
+        self.assertGreaterEqual(summary["tile_jpeg_count"], 1)
+        self.assertTrue(summary["repeat_matches"])
+        self.assertTrue(summary["parallel_matches"])
+        self.assertGreater(summary["regions_per_second"], 0)
 
     def test_rejects_invalid_validation_configuration(self) -> None:
         with self.assertRaisesRegex(ValueError, "workers"):
