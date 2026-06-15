@@ -201,7 +201,10 @@ class SqraySDKBackendTests(unittest.TestCase):
 
         self.assertEqual(tile_bytes, b"\xff\xd8\x00\x01\x02\xff\xd9")
         self.assertTrue(fake_library.freed)
-        self.assertEqual(region_bytes, bytes(range(16)))
+        self.assertEqual(
+            region_bytes,
+            bytes([0, 1, 2, 255, 4, 5, 6, 255, 8, 9, 10, 255, 12, 13, 14, 255]),
+        )
         self.assertEqual(tile_size, (544, 448))
         self.assertEqual(level_count, 2)
         self.assertEqual(level_size, (50048, 93184))

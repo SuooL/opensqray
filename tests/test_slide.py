@@ -141,15 +141,23 @@ class SDPCSlideTests(unittest.TestCase):
             def __init__(self, path, *, sdk_dir=None, lib_dir=None):
                 self.path = path
                 self.closed = False
+                self.region_requests = []
 
             def close(self) -> None:
                 self.closed = True
+
+            @property
+            def level_count(self):
+                return 2
+
+            def level_size(self, level):
+                return [(100, 100), (25, 25)][level]
 
             def read_tile_jpeg_bytes(self, *, level, tile_x, tile_y):
                 return f"tile:{level}:{tile_x}:{tile_y}".encode("ascii")
 
             def read_region_bgra_bytes(self, *, location, level, size):
-                self.region_request = (location, level, size)
+                self.region_requests.append((location, level, size))
                 return bytes(range(size[0] * size[1] * 4))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -172,6 +180,10 @@ class SDPCSlideTests(unittest.TestCase):
         image_from_bgra.assert_called_once_with(bytes(range(16)), (2, 2))
         self.assertEqual(region_image, "image")
         self.assertEqual(properties["opensqray.backend"], "sdk")
+        self.assertEqual(
+            slide._sdk_slide.region_requests,
+            [((1, 1), 1, (2, 2)), ((1, 1), 1, (2, 2))],
+        )
         self.assertTrue(slide._sdk_slide.closed)
 
     def test_rejects_unknown_backend(self) -> None:

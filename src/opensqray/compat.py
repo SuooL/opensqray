@@ -165,9 +165,10 @@ class OpenSqraySlide:
         """Return a Pillow RGBA image for a slide region."""
 
         self._require_open()
+        sdk_location = self._sdk_location_for_level(location, level)
         return image_from_bgra_bytes(
             self._sdk_slide.read_region_bgra_bytes(
-                location=location,
+                location=sdk_location,
                 level=level,
                 size=size,
             ),
@@ -264,6 +265,16 @@ class OpenSqraySlide:
     def _require_open(self) -> None:
         if self._closed:
             raise ValueError("OpenSqraySlide is closed")
+
+    def _sdk_location_for_level(
+        self,
+        location: tuple[int, int],
+        level: int,
+    ) -> tuple[int, int]:
+        if level < 0 or level >= self.level_count:
+            raise ValueError(f"level out of range: {level}")
+        downsample = self.level_downsamples[level]
+        return int(location[0] / downsample), int(location[1] / downsample)
 
 
 def open_slide(path: str | Path, **kwargs: object) -> object:

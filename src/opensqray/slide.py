@@ -225,7 +225,7 @@ class SDPCSlide:
         self._require_open()
         if self._sdk_slide is not None:
             return self._sdk_slide.read_region_bgra_bytes(
-                location=location,
+                location=_sdk_location_for_level(self._sdk_slide, location, level),
                 level=level,
                 size=size,
             )
@@ -270,6 +270,31 @@ def _level_dimensions(info: SDPCInfo) -> list[tuple[int, int]]:
         )
         for level in range(info.level_count)
     ]
+
+
+def _sdk_location_for_level(
+    sdk_slide: SqraySDKSlide,
+    location: tuple[int, int],
+    level: int,
+) -> tuple[int, int]:
+    if level < 0 or level >= sdk_slide.level_count:
+        raise ValueError(f"level out of range: {level}")
+    downsample = _sdk_level_downsamples(sdk_slide)[level]
+    return int(location[0] / downsample), int(location[1] / downsample)
+
+
+def _sdk_level_downsamples(sdk_slide: SqraySDKSlide) -> tuple[float, ...]:
+    level_dimensions = tuple(
+        sdk_slide.level_size(level)
+        for level in range(sdk_slide.level_count)
+    )
+    base_width, base_height = level_dimensions[0]
+    downsamples = []
+    for width, height in level_dimensions:
+        width_downsample = base_width / width if width else 1.0
+        height_downsample = base_height / height if height else 1.0
+        downsamples.append(max(width_downsample, height_downsample))
+    return tuple(downsamples)
 
 
 def _slide_properties(info: SDPCInfo) -> dict[str, str]:

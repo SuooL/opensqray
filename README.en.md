@@ -92,7 +92,7 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 
 OpenSqray does not vendor, redistribute, or repackage proprietary SDK binaries.
 
-For private SDK runtime wheel / native-library packaging guidance, see [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md). For large-scale patch extraction guidance, see [High-Throughput Patch Extraction Plan](docs/performance-plan.md).
+For private SDK runtime wheel / native-library packaging guidance, see [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md). For per-platform practical validation, see [SDK Runtime Validation](docs/sdk-runtime-validation.md). For large-scale patch extraction guidance, see [High-Throughput Patch Extraction Plan](docs/performance-plan.md).
 
 ## Quick Start
 
@@ -142,6 +142,20 @@ opensqray read-tile path/to/slide.sdpc \
   --level 0 --tile-x 0 --tile-y 0 \
   --output tile-sdk.jpg
 ```
+
+Validate practical SDK runtime usability:
+
+```bash
+python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --workers 4 \
+  --patch-size 256 \
+  --patch-count 16
+```
+
+This validates metadata, associated images, thumbnail, tile JPEGs, multiple
+regions, repeat-read hash consistency, serial/parallel batch consistency, and
+patch throughput. It is not just a smoke test.
 
 Inspect an OpenSlide-supported file such as SVS:
 

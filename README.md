@@ -92,7 +92,7 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 
 OpenSqray 不随仓库分发、复制或再打包任何专有 SDK 二进制文件。
 
-私有部署时的 SDK runtime wheel / native library 打包建议见 [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md)。大规模 patch 处理建议见 [High-Throughput Patch Extraction Plan](docs/performance-plan.md)。
+私有部署时的 SDK runtime wheel / native library 打包建议见 [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md)。每个平台的实际验证流程见 [SDK Runtime Validation](docs/sdk-runtime-validation.md)。大规模 patch 处理建议见 [High-Throughput Patch Extraction Plan](docs/performance-plan.md)。
 
 ## 快速开始
 
@@ -142,6 +142,18 @@ opensqray read-tile path/to/slide.sdpc \
   --level 0 --tile-x 0 --tile-y 0 \
   --output tile-sdk.jpg
 ```
+
+验证 SDK runtime 的实际可用性：
+
+```bash
+python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --workers 4 \
+  --patch-size 256 \
+  --patch-count 16
+```
+
+该验证会检查 metadata、associated images、thumbnail、tile JPEG、多个 region、重复读取 hash 一致性、串行/并行 batch 一致性和 patch throughput；不是只做 smoke test。
 
 检查 SVS 等 OpenSlide 支持的文件：
 

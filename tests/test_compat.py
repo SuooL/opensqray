@@ -34,6 +34,7 @@ class FakeSDKSlide:
     def __init__(self, path, *, sdk_dir=None, lib_dir=None):
         self.path = path
         self.closed = False
+        self.region_requests = []
 
     def close(self) -> None:
         self.closed = True
@@ -76,7 +77,7 @@ class FakeSDKSlide:
         return sizes[name], f"jpeg:{name}".encode("ascii")
 
     def read_region_bgra_bytes(self, *, location, level, size):
-        self.region_request = (location, level, size)
+        self.region_requests.append((location, level, size))
         return b"bgra" * (size[0] * size[1])
 
     def read_tile_jpeg_bytes(self, *, level, tile_x, tile_y):
@@ -160,6 +161,14 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
         self.assertEqual(thumbnail.size, (128, 128))
         self.assertEqual(best_level, 1)
         self.assertEqual(tile, b"tile:0:1:2")
+        self.assertEqual(
+            slide._sdk_slide.region_requests,
+            [
+                ((2, 5), 1, (2, 3)),
+                ((0, 0), 0, (1, 1)),
+                ((0, 0), 1, (2, 2)),
+            ],
+        )
         self.assertIn(b"jpeg:thumbnail", decoded_images)
         self.assertTrue(closed)
 
