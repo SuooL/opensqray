@@ -8,6 +8,8 @@
 
 **教程**: [Jupyter Tutorial](examples/opensqray_tutorial.ipynb)
 
+**发布记录**: [CHANGELOG](CHANGELOG.md)
+
 OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Python 工具库，当前重点支持 Sqray SDPC 文件的公开安全解析、元数据检查、候选 JPEG 资源提取，以及 SDK-backed OpenSlide-like 读图能力。对 SVS 等通用 WSI 格式，OpenSqray 通过可选 OpenSlide 依赖进行检查，不重复造一套私有解析器。
 
 项目目标不是把未公开格式“猜成确定协议”，而是提供一个可测试、可复现、边界清楚的工程层：能原生解析的内容原生解析；需要官方运行时才能可靠完成的像素读取，明确交给可选 SDK 后端。
