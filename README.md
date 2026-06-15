@@ -25,6 +25,7 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 - 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
 - 可选 OpenSlide 后端：用于 SVS 等 OpenSlide 支持的标准格式检查。
 - OpenSlide-like `detect_format()`：SDPC 可直接识别，其他格式委托给 OpenSlide。
+- DeepZoom tile helper：`OpenSqrayDeepZoomGenerator` 可基于 `read_region()` 生成 viewer 常用瓦片。
 
 ## 效果预览
 
@@ -279,6 +280,17 @@ with OpenSqraySlide("path/to/slide.sdpc") as slide:
 ```
 
 `read_regions()` 的并行路径会为每个 worker 打开独立 SDK handle，避免在 vendor SDK 线程安全语义尚未公开时共享同一个 handle。处理上万张切片时，建议外层按 slide 做进程级并行，内层每张 slide 使用少量 workers。
+
+生成 DeepZoom tile：
+
+```python
+from opensqray import OpenSqrayDeepZoomGenerator, OpenSqraySlide
+
+with OpenSqraySlide("path/to/slide.sdpc") as slide:
+    dz = OpenSqrayDeepZoomGenerator(slide, tile_size=254, overlap=1)
+    tile = dz.get_tile(dz.level_count - 1, (0, 0))
+    dzi_xml = dz.get_dzi("jpeg")
+```
 
 原生 SDPC 元数据与候选 JPEG：
 

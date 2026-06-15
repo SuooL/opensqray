@@ -20,6 +20,7 @@ through the optional Sqray SDK-backed `OpenSqraySlide` path.
   `properties`, `associated_images`, `read_region()`, `get_thumbnail()`,
   `get_best_level_for_downsample()`, and `read_tile_jpeg_bytes()`.
 * OpenSlide-like `detect_format()` for SDPC and OpenSlide-delegated formats.
+* DeepZoom-style tile helper backed by existing `read_region()`.
 * Batch patch helpers: `RegionRequest`, `iter_patch_requests()`,
   `read_regions()`, `iter_regions()`, `OpenSqraySlide.read_regions()`, and
   `OpenSqraySlide.iter_regions()`.
@@ -311,9 +312,9 @@ SDK path setup and pass the same real-SDPC validation checks.
 
 ### M15: OpenSlide Parity Extensions
 
-* Decide which OpenSlide compatibility gaps are worth implementing for SDPC:
-  error-latching semantics, DeepZoom helpers, ICC/color management, and
-  optional multi-channel/focal-plane APIs.
+* Decide which remaining OpenSlide compatibility gaps are worth implementing
+  for SDPC: error-latching semantics, ICC/color management, and optional
+  multi-channel/focal-plane APIs.
 * Maintain `docs/openslide-compatibility.md` as the compatibility source of
   truth.
 * Add only APIs with clear semantics on SDPC and tests that can run without

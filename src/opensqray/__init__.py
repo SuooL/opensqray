@@ -23,6 +23,7 @@ from .compat import (
     is_sdpc,
     open_slide,
 )
+from .deepzoom import DeepZoomGenerator, OpenSqrayDeepZoomGenerator
 from .image_adapter import (
     ImageDecodeUnavailable,
     decode_jpeg_bytes,
@@ -62,8 +63,10 @@ from .slide import SDPCSlide
 __all__ = [
     "ImageDecodeUnavailable",
     "DEFAULT_RUNTIME_WHEEL_PACKAGE_NAME",
+    "DeepZoomGenerator",
     "OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION",
     "OpenSqraySlide",
+    "OpenSqrayDeepZoomGenerator",
     "PROPERTY_NAME_BOUNDS_HEIGHT",
     "PROPERTY_NAME_BOUNDS_WIDTH",
     "PROPERTY_NAME_BOUNDS_X",

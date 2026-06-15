@@ -20,6 +20,7 @@ OpenSlide Python behavior.
 | `read_region(location, level, size)` | Supported with OpenSlide-style level-0 coordinates |
 | `get_thumbnail(size)` | Supported |
 | `get_best_level_for_downsample(downsample)` | Supported |
+| DeepZoom tile helper | Supported through `OpenSqrayDeepZoomGenerator`; not a drop-in clone of every `openslide.deepzoom` behavior |
 | context manager / `close()` | Supported |
 
 ## OpenSqray Extensions
@@ -38,7 +39,6 @@ OpenSlide Python behavior.
 | OpenSlide behavior | Current decision |
 | --- | --- |
 | Error-latching semantics | Not implemented; current methods raise normal Python exceptions |
-| DeepZoom helpers | Not implemented; can be added as a separate adapter if needed |
 | ICC profile parity | Not implemented; SDK color APIs need separate SDPC semantics first |
 | Multi-channel / focal-plane APIs | Not implemented; not part of the minimal brightfield OpenSlide workflow |
 | Native SDPC `read_region()` without SDK | Not implemented; native parser remains research/metadata only |
