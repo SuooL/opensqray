@@ -24,6 +24,7 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 - 可选 Pillow 解码：安装 `opensqray[image]` 后可将候选 JPEG 或 SDK BGRA region 转成图像对象。
 - 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
 - 可选 OpenSlide 后端：用于 SVS 等 OpenSlide 支持的标准格式检查。
+- OpenSlide-like `detect_format()`：SDPC 可直接识别，其他格式委托给 OpenSlide。
 
 ## 效果预览
 
@@ -242,7 +243,9 @@ with OpenSqraySlide("path/to/slide.sdpc") as slide:
 如果你希望同一个入口同时处理 SDPC 和 OpenSlide 支持的 SVS，可以使用 `open_slide()`：
 
 ```python
-from opensqray import open_slide
+from opensqray import detect_format, open_slide
+
+print(detect_format("path/to/slide.sdpc"))  # "sqray"
 
 with open_slide("path/to/slide.sdpc") as slide:
     region = slide.read_region((0, 0), 0, (512, 512))

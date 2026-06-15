@@ -315,6 +315,27 @@ def open_slide(path: str | Path, **kwargs: object) -> object:
     return openslide.OpenSlide(str(slide_path))
 
 
+def detect_format(path: str | Path) -> str | None:
+    """Return the detected slide vendor/format without opening the slide."""
+
+    slide_path = Path(path)
+    try:
+        if is_sdpc(slide_path):
+            return "sqray"
+    except OSError:
+        return None
+
+    try:
+        import openslide
+    except ImportError:
+        return None
+
+    detector = getattr(openslide.OpenSlide, "detect_format", None)
+    if detector is None:
+        return None
+    return detector(str(slide_path))
+
+
 def is_sdpc(path: str | Path) -> bool:
     """Return true when the file has an SDPC signature."""
 

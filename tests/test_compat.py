@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from opensqray import OpenSqraySlide, is_sdpc
+from opensqray import OpenSqraySlide, detect_format, is_sdpc
 import opensqray
 from opensqray.compat import (
     PROPERTY_NAME_MPP_X,
@@ -103,6 +104,29 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
 
             self.assertTrue(is_sdpc(sdpc_path))
             self.assertFalse(is_sdpc(other_path))
+
+    def test_detect_format_returns_sqray_for_sdpc_without_openslide(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sdpc_path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(sdpc_path)
+
+            with patch.dict("sys.modules", {"openslide": None}):
+                detected = detect_format(sdpc_path)
+
+        self.assertEqual(detected, "sqray")
+
+    def test_detect_format_delegates_non_sdpc_to_openslide(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            svs_path = Path(tmp_dir) / "sample.svs"
+            svs_path.write_bytes(b"not sdpc")
+
+            fake_openslide = SimpleNamespace(
+                OpenSlide=SimpleNamespace(detect_format=lambda path: "aperio")
+            )
+            with patch.dict("sys.modules", {"openslide": fake_openslide}):
+                detected = detect_format(svs_path)
+
+        self.assertEqual(detected, "aperio")
 
     def test_openslide_like_core_api_uses_sdk_backend(self) -> None:
         decoded_images: list[bytes] = []

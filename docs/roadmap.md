@@ -19,6 +19,7 @@ through the optional Sqray SDK-backed `OpenSqraySlide` path.
   `dimensions`, `level_count`, `level_dimensions`, `level_downsamples`,
   `properties`, `associated_images`, `read_region()`, `get_thumbnail()`,
   `get_best_level_for_downsample()`, and `read_tile_jpeg_bytes()`.
+* OpenSlide-like `detect_format()` for SDPC and OpenSlide-delegated formats.
 * Batch patch helpers: `RegionRequest`, `iter_patch_requests()`,
   `read_regions()`, `iter_regions()`, `OpenSqraySlide.read_regions()`, and
   `OpenSqraySlide.iter_regions()`.
