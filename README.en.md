@@ -19,6 +19,7 @@ The project is designed around explicit boundaries: parse what can be parsed nat
 - Associated-image candidates for label/macro-style embedded JPEG resources.
 - Tile-index research utilities for row-major tile candidates and diagnostic index-table evidence.
 - `OpenSqraySlide`: an SDK-backed OpenSlide-like SDPC class supporting `read_region()`, `get_thumbnail()`, `associated_images`, level metadata, and properties.
+- Batch patch reads with `RegionRequest`, `iter_patch_requests()`, and `read_regions()`, using explicit workers and one SDK slide handle per worker.
 - Research-oriented `SDPCSlide` facade exposing metadata, candidate JPEG bytes, and lower-level SDK tile/region access.
 - Optional Pillow decoding via `opensqray[image]`.
 - Optional Sqray SDK backend for reliable SDPC tile JPEG and BGRA region reads when a licensed runtime is available locally.
@@ -91,6 +92,8 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 
 OpenSqray does not vendor, redistribute, or repackage proprietary SDK binaries.
 
+For private SDK runtime wheel / native-library packaging guidance, see [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md). For per-platform practical validation, see [SDK Runtime Validation](docs/sdk-runtime-validation.md). For large-scale patch extraction guidance, see [High-Throughput Patch Extraction Plan](docs/performance-plan.md).
+
 ## Quick Start
 
 Inspect SDPC metadata:
@@ -140,6 +143,20 @@ opensqray read-tile path/to/slide.sdpc \
   --output tile-sdk.jpg
 ```
 
+Validate practical SDK runtime usability:
+
+```bash
+python3 tools/validate_sdk_runtime.py path/to/slide.sdpc \
+  --sdk-lib-dir /path/to/sqrayslide/lib \
+  --workers 4 \
+  --patch-size 256 \
+  --patch-count 16
+```
+
+This validates metadata, associated images, thumbnail, tile JPEGs, multiple
+regions, repeat-read hash consistency, serial/parallel batch consistency, and
+patch throughput. It is not just a smoke test.
+
 Inspect an OpenSlide-supported file such as SVS:
 
 ```bash
@@ -178,6 +195,26 @@ from opensqray import open_slide
 with open_slide("path/to/slide.sdpc") as slide:
     region = slide.read_region((0, 0), 0, (512, 512))
 ```
+
+Batch patch reads:
+
+```python
+from opensqray import OpenSqraySlide, iter_patch_requests
+
+with OpenSqraySlide("path/to/slide.sdpc") as slide:
+    requests = iter_patch_requests(
+        slide.dimensions,
+        patch_size=(512, 512),
+        stride=(512, 512),
+        level=0,
+    )
+    patches = slide.read_regions(requests, workers=4)
+```
+
+The parallel `read_regions()` path opens one independent SDK handle per worker
+instead of sharing a vendor SDK handle across threads. For tens of thousands of
+slides, prefer an outer process pool over slide paths and a small number of
+inner workers per slide.
 
 Native SDPC metadata and candidate JPEG bytes:
 
@@ -232,6 +269,7 @@ OpenSqray currently has two SDPC paths:
 | `read_region()` | Raises `NotImplementedError` | Supported when Pillow is installed |
 | `get_thumbnail()` | Not implemented | Supported |
 | `get_best_level_for_downsample()` | Not implemented | Supported with OpenSlide-style downsample selection |
+| Batch patch reads | Not implemented | Supported through `read_regions()` / `iter_patch_requests()` |
 | Color correction / ICC | Not implemented | SDK has an API; not yet exposed with OpenSlide ICC semantics |
 | Fluorescence / channels / focal planes | Not implemented | Not wrapped yet |
 | Full OpenSlide API parity | Not yet | Core reading API is usable; error-latching, DeepZoom, and ICC remain roadmap items |
@@ -262,9 +300,11 @@ Diagnostic results are for format research and should not be treated as a comple
 - [x] Tile-grid candidates and index-research diagnostics.
 - [x] `SDPCSlide` facade, Pillow decode adapter, and SDK backend MVP.
 - [x] SDK-backed `OpenSqraySlide` compatibility layer: `read_region()`, `get_thumbnail()`, associated images, and level metadata.
+- [x] SDK-backed batch patch helpers and a bounded worker model.
+- [x] Private SDK runtime packaging strategy and large-scale patch performance plan.
 - [ ] More complete SDPC tile-directory mapping and cross-sample validation.
 - [ ] OpenSlide error-latching, DeepZoom helpers, and ICC/color correction support.
-- [ ] Private deployment guidance for SDK runtime packaging.
+- [ ] Internal build pipeline for platform runtime wheels or a native shim.
 
 ## Development
 

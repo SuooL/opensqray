@@ -7,8 +7,13 @@ import unittest
 from unittest.mock import patch
 
 from opensqray.sdk_backend import (
+    OPENSQRAY_SDK_RUNTIME_ROOT_ENV,
     SqraySDKSlide,
     SqraySDKUnavailable,
+    _dynamic_libraries,
+    _linux_preload_libraries,
+    _platform_runtime_tag,
+    _resolve_lib_dir,
     inspect_sqray_sdk_slide,
 )
 
@@ -129,6 +134,96 @@ class SqraySDKBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(SqraySDKUnavailable, "not configured"):
                 SqraySDKSlide("sample.sdpc")
 
+    def test_resolves_windows_sdk_bin_directory_from_sdk_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+
+            with patch("opensqray.sdk_backend.platform.system", return_value="Windows"):
+                resolved = _resolve_lib_dir(sdk_dir=root, lib_dir=None)
+
+        self.assertEqual(resolved, bin_dir)
+
+    def test_resolves_optional_packaged_runtime_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_root = Path(tmp_dir) / "runtime"
+            runtime_lib = runtime_root / _platform_runtime_tag() / "lib"
+            runtime_lib.mkdir(parents=True)
+
+            with patch.dict("os.environ", {}, clear=True), patch(
+                "opensqray.sdk_backend.importlib.util.find_spec",
+                return_value=object(),
+            ), patch(
+                "opensqray.sdk_backend.importlib.resources.files",
+                return_value=runtime_root,
+            ):
+                resolved = _resolve_lib_dir(sdk_dir=None, lib_dir=None)
+
+        self.assertEqual(resolved, runtime_lib)
+
+    def test_resolves_runtime_root_environment_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_root = Path(tmp_dir) / "runtime"
+            runtime_lib = runtime_root / _platform_runtime_tag() / "lib"
+            runtime_lib.mkdir(parents=True)
+
+            with patch.dict(
+                "os.environ",
+                {OPENSQRAY_SDK_RUNTIME_ROOT_ENV: str(runtime_root)},
+                clear=True,
+            ), patch(
+                "opensqray.sdk_backend.importlib.util.find_spec",
+                return_value=None,
+            ):
+                resolved = _resolve_lib_dir(sdk_dir=None, lib_dir=None)
+
+        self.assertEqual(resolved, runtime_lib)
+
+    def test_detects_versioned_linux_shared_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lib_dir = Path(tmp_dir)
+            plain = lib_dir / "libplain.so"
+            versioned = lib_dir / "libplain.so.17"
+            other = lib_dir / "plain.txt"
+            plain.touch()
+            versioned.touch()
+            other.touch()
+
+            with patch("opensqray.sdk_backend.platform.system", return_value="Linux"):
+                libraries = _dynamic_libraries(lib_dir)
+
+        self.assertEqual(libraries, [plain, versioned])
+
+    def test_linux_preload_libraries_avoid_duplicate_sdk_soname_copies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lib_dir = Path(tmp_dir)
+            for name in (
+                "libavcodec.so",
+                "libavcodec.so.58",
+                "libavcodec.so.58.111.100",
+                "libavutil.so",
+                "libavutil.so.56",
+                "libavutil.so.56.60.100",
+                "libswresample.so.3",
+                "libsqrayslidebase.so",
+                "libsqrayslideservice.so",
+                "libavdevice.so.58",
+            ):
+                (lib_dir / name).touch()
+
+            libraries = _linux_preload_libraries(lib_dir)
+
+        self.assertEqual(
+            libraries,
+            [
+                lib_dir / "libavutil.so.56",
+                lib_dir / "libswresample.so.3",
+                lib_dir / "libavcodec.so.58",
+                lib_dir / "libsqrayslidebase.so",
+            ],
+        )
+
     def test_reads_sdk_geometry_tile_jpeg_and_region_bytes(self) -> None:
         fake_library = FakeSqrayLibrary()
 
@@ -155,7 +250,10 @@ class SqraySDKBackendTests(unittest.TestCase):
 
         self.assertEqual(tile_bytes, b"\xff\xd8\x00\x01\x02\xff\xd9")
         self.assertTrue(fake_library.freed)
-        self.assertEqual(region_bytes, bytes(range(16)))
+        self.assertEqual(
+            region_bytes,
+            bytes([0, 1, 2, 255, 4, 5, 6, 255, 8, 9, 10, 255, 12, 13, 14, 255]),
+        )
         self.assertEqual(tile_size, (544, 448))
         self.assertEqual(level_count, 2)
         self.assertEqual(level_size, (50048, 93184))

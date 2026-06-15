@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from opensqray import OpenSqraySlide, is_sdpc
+from opensqray import OpenSqraySlide, detect_format, is_sdpc
+import opensqray
 from opensqray.compat import (
     PROPERTY_NAME_MPP_X,
     PROPERTY_NAME_OBJECTIVE_POWER,
@@ -34,6 +36,7 @@ class FakeSDKSlide:
     def __init__(self, path, *, sdk_dir=None, lib_dir=None):
         self.path = path
         self.closed = False
+        self.region_requests = []
 
     def close(self) -> None:
         self.closed = True
@@ -76,7 +79,7 @@ class FakeSDKSlide:
         return sizes[name], f"jpeg:{name}".encode("ascii")
 
     def read_region_bgra_bytes(self, *, location, level, size):
-        self.region_request = (location, level, size)
+        self.region_requests.append((location, level, size))
         return b"bgra" * (size[0] * size[1])
 
     def read_tile_jpeg_bytes(self, *, level, tile_x, tile_y):
@@ -84,6 +87,14 @@ class FakeSDKSlide:
 
 
 class OpenSqraySlideCompatTests(unittest.TestCase):
+    def test_exports_openslide_style_property_constants(self) -> None:
+        self.assertEqual(opensqray.PROPERTY_NAME_VENDOR, "openslide.vendor")
+        self.assertEqual(opensqray.PROPERTY_NAME_MPP_X, "openslide.mpp-x")
+        self.assertEqual(
+            opensqray.PROPERTY_NAME_OBJECTIVE_POWER,
+            "openslide.objective-power",
+        )
+
     def test_sdpc_signature_detection(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             sdpc_path = Path(tmp_dir) / "sample.sdpc"
@@ -93,6 +104,29 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
 
             self.assertTrue(is_sdpc(sdpc_path))
             self.assertFalse(is_sdpc(other_path))
+
+    def test_detect_format_returns_sqray_for_sdpc_without_openslide(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sdpc_path = Path(tmp_dir) / "sample.sdpc"
+            make_sdpc_fixture(sdpc_path)
+
+            with patch.dict("sys.modules", {"openslide": None}):
+                detected = detect_format(sdpc_path)
+
+        self.assertEqual(detected, "sqray")
+
+    def test_detect_format_delegates_non_sdpc_to_openslide(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            svs_path = Path(tmp_dir) / "sample.svs"
+            svs_path.write_bytes(b"not sdpc")
+
+            fake_openslide = SimpleNamespace(
+                OpenSlide=SimpleNamespace(detect_format=lambda path: "aperio")
+            )
+            with patch.dict("sys.modules", {"openslide": fake_openslide}):
+                detected = detect_format(svs_path)
+
+        self.assertEqual(detected, "aperio")
 
     def test_openslide_like_core_api_uses_sdk_backend(self) -> None:
         decoded_images: list[bytes] = []
@@ -122,6 +156,12 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
                     properties = slide.properties
                     associated = slide.associated_images
                     region = slide.read_region((10, 20), 1, (2, 3))
+                    regions = slide.read_regions(
+                        [
+                            ((0, 0), 0, (1, 1)),
+                            ((2, 3), 1, (2, 2)),
+                        ]
+                    )
                     thumbnail = slide.get_thumbnail((128, 128))
                     best_level = slide.get_best_level_for_downsample(4)
                     tile = slide.read_tile_jpeg_bytes(level=0, tile_x=1, tile_y=2)
@@ -139,11 +179,29 @@ class OpenSqraySlideCompatTests(unittest.TestCase):
         self.assertEqual(properties[PROPERTY_NAME_MPP_X], "0.25")
         self.assertEqual(properties["opensqray.backend"], "sdk")
         self.assertEqual(sorted(associated), ["label", "macro", "thumbnail"])
-        image_from_bgra.assert_called_once_with(b"bgra" * 6, (2, 3))
+        self.assertEqual(image_from_bgra.call_count, 3)
+        self.assertEqual(
+            image_from_bgra.call_args_list[0].args,
+            (b"bgra" * 6, (2, 3)),
+        )
+        self.assertEqual(image_from_bgra.call_args_list[1].args, (b"bgra", (1, 1)))
+        self.assertEqual(
+            image_from_bgra.call_args_list[2].args,
+            (b"bgra" * 4, (2, 2)),
+        )
         self.assertEqual(region, "region-image")
+        self.assertEqual(regions, ["region-image", "region-image"])
         self.assertEqual(thumbnail.size, (128, 128))
         self.assertEqual(best_level, 1)
         self.assertEqual(tile, b"tile:0:1:2")
+        self.assertEqual(
+            slide._sdk_slide.region_requests,
+            [
+                ((2, 5), 1, (2, 3)),
+                ((0, 0), 0, (1, 1)),
+                ((0, 0), 1, (2, 2)),
+            ],
+        )
         self.assertIn(b"jpeg:thumbnail", decoded_images)
         self.assertTrue(closed)
 

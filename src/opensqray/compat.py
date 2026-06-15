@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from .image_adapter import decode_jpeg_bytes, image_from_bgra_bytes
 from .openslide_adapter import OpenSlideUnavailable
@@ -44,6 +44,8 @@ class OpenSqraySlide:
         sdk_lib_dir: str | Path | None = None,
     ) -> None:
         self._path = Path(filename)
+        self._sdk_dir = sdk_dir
+        self._sdk_lib_dir = sdk_lib_dir
         self._info = read_sdpc(self._path)
         self._sdk_slide = SqraySDKSlide(
             self._path,
@@ -163,13 +165,69 @@ class OpenSqraySlide:
         """Return a Pillow RGBA image for a slide region."""
 
         self._require_open()
+        sdk_location = self._sdk_location_for_level(location, level)
         return image_from_bgra_bytes(
             self._sdk_slide.read_region_bgra_bytes(
-                location=location,
+                location=sdk_location,
                 level=level,
                 size=size,
             ),
             size,
+        )
+
+    def read_regions(
+        self,
+        requests: Iterable[object],
+        *,
+        workers: int | None = 1,
+    ) -> list[object]:
+        """Return many region images, optionally using parallel SDK handles."""
+
+        self._require_open()
+        if workers is None or workers == 1:
+            from .batch import RegionRequest, _coerce_request
+
+            images: list[object] = []
+            for request in requests:
+                normalized: RegionRequest = _coerce_request(request)
+                images.append(
+                    self.read_region(
+                        normalized.location,
+                        normalized.level,
+                        normalized.size,
+                    )
+                )
+            return images
+
+        from .batch import read_regions
+
+        return read_regions(
+            self._path,
+            requests,
+            workers=workers,
+            sdk_dir=self._sdk_dir,
+            sdk_lib_dir=self._sdk_lib_dir,
+        )
+
+    def iter_regions(
+        self,
+        requests: Iterable[object],
+        *,
+        workers: int | None = 1,
+        chunk_size: int = 64,
+    ) -> Iterable[object]:
+        """Yield region results chunk by chunk for large patch jobs."""
+
+        self._require_open()
+        from .batch import iter_regions
+
+        return iter_regions(
+            self._path,
+            requests,
+            workers=workers,
+            chunk_size=chunk_size,
+            sdk_dir=self._sdk_dir,
+            sdk_lib_dir=self._sdk_lib_dir,
         )
 
     def get_thumbnail(self, size: tuple[int, int]) -> object:
@@ -229,6 +287,16 @@ class OpenSqraySlide:
         if self._closed:
             raise ValueError("OpenSqraySlide is closed")
 
+    def _sdk_location_for_level(
+        self,
+        location: tuple[int, int],
+        level: int,
+    ) -> tuple[int, int]:
+        if level < 0 or level >= self.level_count:
+            raise ValueError(f"level out of range: {level}")
+        downsample = self.level_downsamples[level]
+        return int(location[0] / downsample), int(location[1] / downsample)
+
 
 def open_slide(path: str | Path, **kwargs: object) -> object:
     """Open SDPC with ``OpenSqraySlide`` and other formats with OpenSlide."""
@@ -245,6 +313,27 @@ def open_slide(path: str | Path, **kwargs: object) -> object:
             "native OpenSlide library for non-SDPC slides."
         ) from exc
     return openslide.OpenSlide(str(slide_path))
+
+
+def detect_format(path: str | Path) -> str | None:
+    """Return the detected slide vendor/format without opening the slide."""
+
+    slide_path = Path(path)
+    try:
+        if is_sdpc(slide_path):
+            return "sqray"
+    except OSError:
+        return None
+
+    try:
+        import openslide
+    except ImportError:
+        return None
+
+    detector = getattr(openslide.OpenSlide, "detect_format", None)
+    if detector is None:
+        return None
+    return detector(str(slide_path))
 
 
 def is_sdpc(path: str | Path) -> bool:
