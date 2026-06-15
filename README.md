@@ -188,6 +188,17 @@ OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime \
 staging 工具只写入你指定的外部目录，并生成
 `opensqray-sdk-runtime-manifest.json`；不要把 staged runtime 或 SDK 二进制提交到公开仓库。
 
+构建私有 runtime wheel：
+
+```bash
+python3 tools/build_sdk_runtime_wheel.py /path/to/opensqray_sdk_runtime \
+  /path/to/private-dist \
+  --platform-tag linux-x86_64 \
+  --version 0.1.0+internal
+```
+
+默认不会把 staging manifest 打进 wheel，以免泄露本地路径。
+
 运行 patch benchmark：
 
 ```bash

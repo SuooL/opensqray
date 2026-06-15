@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 
 from opensqray import (
+    RUNTIME_WHEEL_BUILD_SCHEMA_VERSION,
     RUNTIME_PACKAGE_MANIFEST_NAME,
     RUNTIME_PACKAGE_CHECK_SCHEMA_VERSION,
     RUNTIME_PACKAGE_STAGE_SCHEMA_VERSION,
+    build_runtime_wheel,
     check_runtime_package_layout,
     stage_runtime_package_layout,
 )
@@ -179,6 +182,66 @@ class RuntimePackageCheckTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(staged_names, ["dependency.dll", "sqrayslideservice.dll"])
+
+    def test_builds_private_runtime_wheel_without_manifest_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir) / "runtime"
+            dist = Path(tmp_dir) / "dist"
+            lib_dir = root / "linux-x86_64" / "lib"
+            lib_dir.mkdir(parents=True)
+            (lib_dir / "libsqrayslideservice.so").write_bytes(b"service")
+            (root / RUNTIME_PACKAGE_MANIFEST_NAME).write_text(
+                "contains private local paths",
+                encoding="utf-8",
+            )
+
+            payload = build_runtime_wheel(
+                root,
+                dist,
+                version="0.1.0+test",
+                platform_tag="linux-x86_64",
+            )
+            wheel_path = Path(str(payload["wheel"]))
+            with zipfile.ZipFile(wheel_path) as wheel:
+                names = sorted(wheel.namelist())
+                record = wheel.read(
+                    "opensqray_sdk_runtime-0.1.0+test.dist-info/RECORD"
+                ).decode("utf-8")
+
+        self.assertEqual(
+            payload["schema_version"],
+            RUNTIME_WHEEL_BUILD_SCHEMA_VERSION,
+        )
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(wheel_path.name.endswith("manylinux_2_17_x86_64.whl"))
+        self.assertIn(
+            "opensqray_sdk_runtime/linux-x86_64/lib/libsqrayslideservice.so",
+            names,
+        )
+        self.assertIn("opensqray_sdk_runtime/__init__.py", names)
+        self.assertIn(
+            "opensqray_sdk_runtime-0.1.0+test.dist-info/WHEEL",
+            names,
+        )
+        self.assertNotIn(
+            f"opensqray_sdk_runtime/{RUNTIME_PACKAGE_MANIFEST_NAME}",
+            names,
+        )
+        self.assertIn("libsqrayslideservice.so,sha256=", record)
+
+    def test_build_runtime_wheel_refuses_existing_wheel_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir) / "runtime"
+            dist = Path(tmp_dir) / "dist"
+            lib_dir = root / "macos-arm64" / "lib"
+            lib_dir.mkdir(parents=True)
+            (lib_dir / "libsqrayslideservice.dylib").write_bytes(b"service")
+
+            build_runtime_wheel(root, dist, platform_tag="macos-arm64")
+            payload = build_runtime_wheel(root, dist, platform_tag="macos-arm64")
+
+        self.assertEqual(payload["status"], "failed")
+        self.assertIn("refusing to overwrite", payload["errors"][0])
 
 
 if __name__ == "__main__":
