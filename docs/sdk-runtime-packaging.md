@@ -77,10 +77,12 @@ The loader searches for the service library in this order:
 2. Explicit `sdk_dir=...` root:
    - Windows: `bin/`, then `lib/`
    - Linux/macOS: `lib/`
-3. Optional private runtime package, default name
+3. `OPENSQRAY_SDK_RUNTIME_ROOT` pointing to a staged private runtime package
+   root.
+4. Optional private runtime package, default name
    `opensqray_sdk_runtime`.
-4. `OPENSQRAY_SDK_LIB_DIR`.
-5. `OPENSQRAY_SDK_DIR` root using the same platform-specific subdirectory
+5. `OPENSQRAY_SDK_LIB_DIR`.
+6. `OPENSQRAY_SDK_DIR` root using the same platform-specific subdirectory
    rules.
 
 The optional runtime package may also be configured with

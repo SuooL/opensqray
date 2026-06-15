@@ -15,6 +15,7 @@ from .compat import OpenSqraySlide
 from .sdk_backend import (
     OPENSQRAY_SDK_DIR_ENV,
     OPENSQRAY_SDK_LIB_DIR_ENV,
+    OPENSQRAY_SDK_RUNTIME_ROOT_ENV,
     OPENSQRAY_SDK_RUNTIME_PACKAGE_ENV,
 )
 
@@ -66,6 +67,7 @@ def validate_sdk_runtime(
             "env_keys": [
                 OPENSQRAY_SDK_DIR_ENV,
                 OPENSQRAY_SDK_LIB_DIR_ENV,
+                OPENSQRAY_SDK_RUNTIME_ROOT_ENV,
                 OPENSQRAY_SDK_RUNTIME_PACKAGE_ENV,
             ],
         },

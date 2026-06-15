@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from opensqray.sdk_backend import (
+    OPENSQRAY_SDK_RUNTIME_ROOT_ENV,
     SqraySDKSlide,
     SqraySDKUnavailable,
     _dynamic_libraries,
@@ -156,6 +157,24 @@ class SqraySDKBackendTests(unittest.TestCase):
             ), patch(
                 "opensqray.sdk_backend.importlib.resources.files",
                 return_value=runtime_root,
+            ):
+                resolved = _resolve_lib_dir(sdk_dir=None, lib_dir=None)
+
+        self.assertEqual(resolved, runtime_lib)
+
+    def test_resolves_runtime_root_environment_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_root = Path(tmp_dir) / "runtime"
+            runtime_lib = runtime_root / _platform_runtime_tag() / "lib"
+            runtime_lib.mkdir(parents=True)
+
+            with patch.dict(
+                "os.environ",
+                {OPENSQRAY_SDK_RUNTIME_ROOT_ENV: str(runtime_root)},
+                clear=True,
+            ), patch(
+                "opensqray.sdk_backend.importlib.util.find_spec",
+                return_value=None,
             ):
                 resolved = _resolve_lib_dir(sdk_dir=None, lib_dir=None)
 

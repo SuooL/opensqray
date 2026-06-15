@@ -19,6 +19,7 @@ from typing import Any
 OPENSQRAY_SDK_DIR_ENV = "OPENSQRAY_SDK_DIR"
 OPENSQRAY_SDK_LIB_DIR_ENV = "OPENSQRAY_SDK_LIB_DIR"
 OPENSQRAY_SDK_EXTRA_LIB_DIRS_ENV = "OPENSQRAY_SDK_EXTRA_LIB_DIRS"
+OPENSQRAY_SDK_RUNTIME_ROOT_ENV = "OPENSQRAY_SDK_RUNTIME_ROOT"
 OPENSQRAY_SDK_RUNTIME_PACKAGE_ENV = "OPENSQRAY_SDK_RUNTIME_PACKAGE"
 DEFAULT_SDK_RUNTIME_PACKAGE = "opensqray_sdk_runtime"
 
@@ -377,6 +378,10 @@ def _resolve_lib_dir(
         candidates.append(Path(lib_dir))
     if sdk_dir is not None:
         candidates.extend(_sdk_root_library_dirs(Path(sdk_dir)))
+
+    env_runtime_root = os.environ.get(OPENSQRAY_SDK_RUNTIME_ROOT_ENV)
+    if env_runtime_root:
+        candidates.extend(_runtime_root_library_dirs(Path(env_runtime_root)))
     candidates.extend(_packaged_runtime_lib_dirs())
 
     env_lib_dir = os.environ.get(OPENSQRAY_SDK_LIB_DIR_ENV)
@@ -393,7 +398,8 @@ def _resolve_lib_dir(
     raise SqraySDKUnavailable(
         "Sqray SDK library directory is not configured. Set "
         f"{OPENSQRAY_SDK_LIB_DIR_ENV} to the SDK lib directory, or set "
-        f"{OPENSQRAY_SDK_DIR_ENV} to an SDK root containing lib/."
+        f"{OPENSQRAY_SDK_DIR_ENV} to an SDK root containing lib/, or set "
+        f"{OPENSQRAY_SDK_RUNTIME_ROOT_ENV} to a private runtime package root."
     )
 
 
@@ -502,13 +508,19 @@ def _packaged_runtime_lib_dirs() -> list[Path]:
         except (ModuleNotFoundError, ValueError):
             continue
         root = Path(str(package_root))
-        platform_tag = _platform_runtime_tag()
-        if platform.system() == "Windows":
-            candidates.append(root / platform_tag / "bin")
-        candidates.append(root / platform_tag / "lib")
-        if platform.system() == "Windows":
-            candidates.append(root / "bin")
-        candidates.append(root / "lib")
+        candidates.extend(_runtime_root_library_dirs(root))
+    return candidates
+
+
+def _runtime_root_library_dirs(root: Path) -> list[Path]:
+    platform_tag = _platform_runtime_tag()
+    candidates: list[Path] = []
+    if platform.system() == "Windows":
+        candidates.append(root / platform_tag / "bin")
+    candidates.append(root / platform_tag / "lib")
+    if platform.system() == "Windows":
+        candidates.append(root / "bin")
+    candidates.append(root / "lib")
     return candidates
 
 

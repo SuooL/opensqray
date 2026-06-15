@@ -36,6 +36,14 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 python3 tools/validate_sdk_runtime.py path/to/slide.sdpc --workers 4
 ```
 
+For a staged or private runtime package layout, point the validator at the
+runtime root:
+
+```bash
+export OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime
+python3 tools/validate_sdk_runtime.py path/to/slide.sdpc --workers 4
+```
+
 The command emits `opensqray.sdk.validation.v1` JSON and exits:
 
 - `0` when all required checks pass

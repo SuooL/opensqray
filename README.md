@@ -75,6 +75,8 @@ python -m pip install -e ".[openslide]"
 export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
 # 或者：
 export OPENSQRAY_SDK_DIR=/path/to/sqrayslide
+# 或者指向 staged/private runtime package root：
+export OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime
 ```
 
 如果 SDK runtime 还依赖额外 native library 目录：
@@ -179,6 +181,8 @@ python3 tools/stage_sdk_runtime_package.py /path/to/sqrayslide/lib \
   --platform-tag linux-x86_64
 python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
   --platform-tag linux-x86_64
+OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime \
+  python3 tools/validate_sdk_runtime.py path/to/slide.sdpc --workers 4
 ```
 
 staging 工具只写入你指定的外部目录，并生成
