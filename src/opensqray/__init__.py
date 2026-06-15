@@ -33,7 +33,10 @@ from .index_research import (
 )
 from .runtime_package import (
     RUNTIME_PACKAGE_CHECK_SCHEMA_VERSION,
+    RUNTIME_PACKAGE_MANIFEST_NAME,
+    RUNTIME_PACKAGE_STAGE_SCHEMA_VERSION,
     check_runtime_package_layout,
+    stage_runtime_package_layout,
 )
 from .sdpc import (
     SDPC_FIELD_CONFIDENCE,
@@ -66,6 +69,8 @@ __all__ = [
     "PROPERTY_NAME_OBJECTIVE_POWER",
     "PROPERTY_NAME_VENDOR",
     "RUNTIME_PACKAGE_CHECK_SCHEMA_VERSION",
+    "RUNTIME_PACKAGE_MANIFEST_NAME",
+    "RUNTIME_PACKAGE_STAGE_SCHEMA_VERSION",
     "SDPC_INDEX_RESEARCH_SCHEMA_VERSION",
     "SDPC_FIELD_CONFIDENCE",
     "SDPC_METADATA_SCHEMA_VERSION",
@@ -90,6 +95,7 @@ __all__ = [
     "read_regions",
     "recommended_worker_count",
     "scan_sdpc_index_research",
+    "stage_runtime_package_layout",
     "summarize_sdk_validation",
     "validate_sdk_runtime",
 ]

@@ -163,6 +163,30 @@ The checker verifies the platform directory and service library name without
 loading native code. It is a packaging preflight, not a replacement for the real
 SDK runtime validator.
 
+To create the same layout from a local legal SDK runtime directory, use the
+staging helper:
+
+```bash
+python3 tools/stage_sdk_runtime_package.py /path/to/sqrayslide/lib \
+  /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+```
+
+For Windows, pass the SDK `bin/` directory and a Windows platform tag:
+
+```powershell
+python tools/stage_sdk_runtime_package.py C:\path\to\sqrayslide\bin `
+  C:\path\to\opensqray_sdk_runtime `
+  --platform-tag windows-x86_64
+```
+
+The staging helper writes an `opensqray-sdk-runtime-manifest.json` manifest at
+the runtime package root. It copies only selected runtime libraries into the
+external output directory. Do not commit the staged output, SDK binaries, or the
+manifest if it contains private local paths.
+
 ## Wrapper `.so` / Native Shim Option
 
 A thin native shim such as `libopensqray_sdk` is a reasonable later milestone.

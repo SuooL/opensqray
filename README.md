@@ -171,6 +171,19 @@ python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
   --platform-tag linux-x86_64
 ```
 
+从本地合法 SDK 目录生成私有 runtime package layout：
+
+```bash
+python3 tools/stage_sdk_runtime_package.py /path/to/sqrayslide/lib \
+  /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+python3 tools/check_sdk_runtime_package.py /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+```
+
+staging 工具只写入你指定的外部目录，并生成
+`opensqray-sdk-runtime-manifest.json`；不要把 staged runtime 或 SDK 二进制提交到公开仓库。
+
 运行 patch benchmark：
 
 ```bash

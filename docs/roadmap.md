@@ -25,7 +25,7 @@ through the optional Sqray SDK-backed `OpenSqraySlide` path.
 * Practical SDK runtime validator and sanitized validation summaries for real
   SDPC files.
 * Runtime packaging strategy docs and high-throughput patch extraction plan.
-* Static private runtime package layout checker.
+* Static private runtime package layout checker and runtime staging helper.
 * OpenSlide compatibility matrix documenting supported, partial, and unclaimed
   behavior.
 
@@ -293,6 +293,8 @@ every supported platform instead of design-only claims.
 * Consider a thin native shim after the Python wrapper API stabilizes.
 * Package only the minimal runtime dependency set needed by the service
   library, not the entire vendor SDK tree.
+* Use `tools/stage_sdk_runtime_package.py` to stage selected runtime libraries
+  into an external private runtime package layout.
 * Run `tools/check_sdk_runtime_package.py` before building or publishing an
   internal runtime wheel.
 * Run the practical validator against every runtime wheel or shim artifact.

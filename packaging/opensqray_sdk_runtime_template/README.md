@@ -21,6 +21,19 @@ The service library names are:
 - macOS: `libsqrayslideservice.dylib`
 - Windows: `sqrayslideservice.dll`
 
+To stage this layout from a local legal SDK runtime directory:
+
+```bash
+python3 tools/stage_sdk_runtime_package.py /path/to/sqrayslide/lib \
+  /path/to/opensqray_sdk_runtime \
+  --platform-tag linux-x86_64
+```
+
+The staging command writes `opensqray-sdk-runtime-manifest.json` at the runtime
+package root and copies selected runtime libraries into the platform directory.
+Keep the staged output outside the public repository unless a private packaging
+pipeline explicitly consumes it.
+
 Before building or publishing an internal runtime wheel, run:
 
 ```bash
