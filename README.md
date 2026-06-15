@@ -8,7 +8,7 @@
 
 **教程**: [Jupyter Tutorial](examples/opensqray_tutorial.ipynb)
 
-OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Python 工具库，当前重点支持 Sqray SDPC 文件的公开安全解析、元数据检查、候选 JPEG 资源提取，以及可选的 SDK 后端读图能力。对 SVS 等通用 WSI 格式，OpenSqray 通过可选 OpenSlide 依赖进行检查，不重复造一套私有解析器。
+OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Python 工具库，当前重点支持 Sqray SDPC 文件的公开安全解析、元数据检查、候选 JPEG 资源提取，以及 SDK-backed OpenSlide-like 读图能力。对 SVS 等通用 WSI 格式，OpenSqray 通过可选 OpenSlide 依赖进行检查，不重复造一套私有解析器。
 
 项目目标不是把未公开格式“猜成确定协议”，而是提供一个可测试、可复现、边界清楚的工程层：能原生解析的内容原生解析；需要官方运行时才能可靠完成的像素读取，明确交给可选 SDK 后端。
 
@@ -18,7 +18,8 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 - 嵌入 JPEG 记录扫描：过滤明显 false positive，只返回可解析的 JPEG 记录。
 - Associated image 候选：可列出和导出 label/macro 等候选 JPEG 资源。
 - Tile index 研究工具：提供 row-major 候选 tile 映射和 index-table 诊断输出。
-- OpenSlide-like `SDPCSlide` facade：提供 `dimensions`、`level_dimensions`、`properties`、tile JPEG byte 读取等接口。
+- `OpenSqraySlide`：SDK-backed OpenSlide-like 兼容类，支持 SDPC 上的 `read_region()`、`get_thumbnail()`、`associated_images`、level metadata 和 properties。
+- 研究型 `SDPCSlide` facade：提供 metadata、candidate JPEG byte、SDK tile/region 低层接口。
 - 可选 Pillow 解码：安装 `opensqray[image]` 后可将候选 JPEG 或 SDK BGRA region 转成图像对象。
 - 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
 - 可选 OpenSlide 后端：用于 SVS 等 OpenSlide 支持的标准格式检查。
@@ -34,6 +35,10 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 | `label_candidate` | `macro_candidate` |
 | --- | --- |
 | <img src="docs/assets/20220514_145829_0-0000-label_candidate.jpg" alt="Real SDPC label candidate" width="280"> | <img src="docs/assets/20220514_145829_0-0001-macro_candidate.jpg" alt="Real SDPC macro candidate" width="520"> |
+
+下面是真实 SDK-backed `OpenSqraySlide.read_region((14000, 3600), 0, (512, 512))` 输出，说明 SDPC 已经可以走类 OpenSlide 的 region 读取路径：
+
+![Real SDK-backed SDPC region](docs/assets/20220514_145829_0-sdk-region-512.png)
 
 想看可复现的真实文件执行过程，可以打开 [examples/opensqray_tutorial.ipynb](examples/opensqray_tutorial.ipynb)。该 notebook 默认读取本地 `data/20220514_145829_0.sdpc`，也可以通过 `OPENSQRAY_TUTORIAL_SDPC=/path/to/file.sdpc` 指向其他 SDPC 文件，并实际运行 OpenSqray parser、`SDPCSlide` 和 CLI。公开仓库不分发 `data/` 中的真实切片文件；如果你从 GitHub 克隆项目，需要在本地提供自己的 SDPC 文件后再运行 notebook。
 
@@ -75,6 +80,13 @@ export OPENSQRAY_SDK_DIR=/path/to/sqrayslide
 
 ```bash
 export OPENSQRAY_SDK_EXTRA_LIB_DIRS=/path/to/extra/libs
+```
+
+macOS 上，当前 Sqray SDK 包的动态库 `rpath` 需要在启动 Python 前配置：
+
+```bash
+export OPENSQRAY_SDK_LIB_DIR=/path/to/sqrayslide/lib
+export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBRARY_PATH:-}"
 ```
 
 OpenSqray 不随仓库分发、复制或再打包任何专有 SDK 二进制文件。
@@ -138,6 +150,35 @@ opensqray inspect path/to/slide.svs --compact
 
 ## Python API
 
+实际读图推荐使用 SDK-backed `OpenSqraySlide`，它面向 OpenSlide 常见使用方式：
+
+```python
+from opensqray import OpenSqraySlide
+
+with OpenSqraySlide("path/to/slide.sdpc") as slide:
+    print(slide.dimensions)
+    print(slide.level_count)
+    print(slide.level_dimensions)
+    print(slide.level_downsamples)
+    print(slide.properties["openslide.mpp-x"])
+
+    region = slide.read_region((0, 0), 0, (512, 512))
+    thumbnail = slide.get_thumbnail((512, 512))
+    label = slide.associated_images["label"]
+
+    region.save("region.png")
+    thumbnail.save("thumbnail.jpg")
+```
+
+如果你希望同一个入口同时处理 SDPC 和 OpenSlide 支持的 SVS，可以使用 `open_slide()`：
+
+```python
+from opensqray import open_slide
+
+with open_slide("path/to/slide.sdpc") as slide:
+    region = slide.read_region((0, 0), 0, (512, 512))
+```
+
 原生 SDPC 元数据与候选 JPEG：
 
 ```python
@@ -179,21 +220,23 @@ with SDPCSlide("path/to/slide.sdpc", backend="sdk") as slide:
 OpenSqray 当前有两个 SDPC 路径：
 
 - `backend="native"`：公开 parser 路径，不依赖专有 runtime，适合元数据、associated image 候选、tile/index 研究和 preview-limited tile JPEG byte 读取。
-- `backend="sdk"`：可选官方 runtime adapter，适合需要坐标准确 tile JPEG 或 region read 的场景。
+- `OpenSqraySlide` / `backend="sdk"`：官方 runtime adapter，是当前实际可用的 SDPC 读图路径，适合需要坐标准确 tile JPEG、region read、thumbnail 和 associated image 的场景。
 
 | 能力 | Native 后端 | SDK 后端 |
 | --- | --- | --- |
-| SDPC 元数据 / properties | 支持 | 支持，并可通过 `sdk-info` 获取 SDK 几何信息 |
-| level dimensions / downsamples | 基于已解析信息推断 | SDK 几何信息可用 |
-| associated images | 启发式 JPEG 候选 | 尚未封装 |
+| SDPC 元数据 / properties | 支持 | 支持，并提供 OpenSlide-style properties |
+| level dimensions / downsamples | 基于已解析信息推断 | 支持，`OpenSqraySlide` 输出 OpenSlide-style downsamples |
+| associated images | 启发式 JPEG 候选 | 支持 `label` / `thumbnail` / `macro` |
 | 按坐标读取 tile JPEG | 启发式、受 preview 限制 | 支持 |
 | `read_region_bgra_bytes()` | 尚未实现 | 支持 |
 | `read_region()` | 抛出 `NotImplementedError` | 安装 Pillow 后支持 |
-| color correction / ICC | 尚未实现 | 尚未封装 |
+| `get_thumbnail()` | 尚未实现 | 支持 |
+| `get_best_level_for_downsample()` | 尚未实现 | 支持 OpenSlide-style downsample 选择 |
+| color correction / ICC | 尚未实现 | SDK 有接口，尚未暴露为 OpenSlide ICC 语义 |
 | fluorescence / channels / focal planes | 尚未实现 | 尚未封装 |
-| 完整 OpenSlide API 兼容 | 尚未达到 | 只覆盖 tile/region 相关子集 |
+| 完整 OpenSlide API 兼容 | 尚未达到 | 核心读图 API 可用；error-latching、DeepZoom helper、ICC 等仍在路线图 |
 
-即使启用 SDK 后端，OpenSqray 目前也还不是 `openslide.OpenSlide` 的完整 drop-in replacement。当前 facade 覆盖了最常用的 metadata、tile JPEG 和 region read；`get_thumbnail()`、标准 OpenSlide associated image mapping、OpenSlide error-latching、DeepZoom helper、ICC/color correction 以及更多 SDK 专有能力仍在路线图中。
+结论很直接：如果要在 SDPC 上像 OpenSlide 处理 SVS 一样做实际读图，请使用 `OpenSqraySlide` 并配置官方 Sqray SDK runtime。纯 native 后端目前不是生产读图路径，它只适合公开安全 metadata / 格式研究。
 
 ## 输出契约
 
@@ -218,9 +261,9 @@ opensqray.sdpc.index_research.v4
 - [x] associated image 候选发现与导出。
 - [x] tile-grid 候选与 index-research 诊断。
 - [x] `SDPCSlide` facade、Pillow 解码适配、SDK backend MVP。
+- [x] SDK-backed `OpenSqraySlide` compatibility layer：`read_region()`、`get_thumbnail()`、associated images、level metadata。
 - [ ] 更完整的 SDPC tile directory 映射与跨样本验证。
-- [ ] OpenSlide-compatible compatibility layer。
-- [ ] thumbnail、associated image 标准映射、ICC/color correction。
+- [ ] OpenSlide error-latching、DeepZoom helper、ICC/color correction。
 - [ ] 私有部署场景下的 SDK runtime 打包策略文档。
 
 ## 开发

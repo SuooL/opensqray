@@ -18,6 +18,12 @@ OPENSQRAY_SDK_DIR_ENV = "OPENSQRAY_SDK_DIR"
 OPENSQRAY_SDK_LIB_DIR_ENV = "OPENSQRAY_SDK_LIB_DIR"
 OPENSQRAY_SDK_EXTRA_LIB_DIRS_ENV = "OPENSQRAY_SDK_EXTRA_LIB_DIRS"
 
+SDK_ASSOCIATED_IMAGE_TYPES = {
+    "label": 0,
+    "thumbnail": 1,
+    "macro": 2,
+}
+
 
 class SqraySDKUnavailable(RuntimeError):
     """Raised when the optional Sqray SDK backend cannot be loaded."""
@@ -110,6 +116,101 @@ class SqraySDKSlide:
             ctypes.byref(rows),
         )
         return columns.value, rows.value
+
+    def level_downsample(self, level: int) -> float:
+        """Return SDK-reported level downsample."""
+
+        self._require_open()
+        return float(
+            self._library.sqrayslide_get_level_downsample(
+                self._handle,
+                int(level),
+            )
+        )
+
+    def best_level_for_downsample(self, downsample: float) -> int:
+        """Return SDK-reported best level for a requested downsample."""
+
+        self._require_open()
+        return int(
+            self._library.sqrayslide_get_best_level_for_downsample(
+                self._handle,
+                float(downsample),
+            )
+        )
+
+    @property
+    def mpp(self) -> tuple[float, float]:
+        """Return SDK-reported microns-per-pixel as ``(mpp_x, mpp_y)``."""
+
+        self._require_open()
+        x = ctypes.c_double()
+        y = ctypes.c_double()
+        self._library.sqrayslide_get_mpp(
+            self._handle,
+            ctypes.byref(x),
+            ctypes.byref(y),
+        )
+        return float(x.value), float(y.value)
+
+    @property
+    def magnification(self) -> float:
+        """Return SDK-reported scan magnification."""
+
+        self._require_open()
+        magnification = ctypes.c_float()
+        self._library.sqrayslide_get_magnification(
+            self._handle,
+            ctypes.byref(magnification),
+        )
+        return float(magnification.value)
+
+    @property
+    def barcode(self) -> str | None:
+        """Return SDK-reported barcode when available."""
+
+        self._require_open()
+        value = self._library.sqrayslide_get_barcode(self._handle)
+        if not value:
+            return None
+        return os.fsdecode(value)
+
+    def read_associated_jpeg_bytes(self, name: str) -> tuple[tuple[int, int], bytes]:
+        """Return SDK label/thumbnail/macro JPEG bytes by associated-image name."""
+
+        self._require_open()
+        try:
+            image_type = SDK_ASSOCIATED_IMAGE_TYPES[name]
+        except KeyError as exc:
+            allowed = ", ".join(sorted(SDK_ASSOCIATED_IMAGE_TYPES))
+            raise KeyError(
+                f"unknown SDK associated image: {name}; expected {allowed}"
+            ) from exc
+
+        width = ctypes.c_int32()
+        height = ctypes.c_int32()
+        data_ptr = ctypes.c_void_p()
+        data_size = ctypes.c_int32()
+        ok = bool(
+            self._library.sqrayslide_read_label_jpeg(
+                self._handle,
+                int(image_type),
+                ctypes.byref(width),
+                ctypes.byref(height),
+                ctypes.byref(data_ptr),
+                ctypes.byref(data_size),
+            )
+        )
+        if not ok or not data_ptr.value or data_size.value <= 0:
+            raise SqraySDKError(f"Sqray SDK failed to read associated image: {name}")
+
+        try:
+            return (width.value, height.value), ctypes.string_at(
+                data_ptr,
+                data_size.value,
+            )
+        finally:
+            self._library.sqrayslide_free_memory(data_ptr)
 
     def read_tile_jpeg_bytes(self, *, level: int, tile_x: int, tile_y: int) -> bytes:
         """Return raw JPEG bytes for an SDK tile coordinate."""
@@ -204,10 +305,14 @@ def inspect_sqray_sdk_slide(
             "path": str(path),
             "tile_size": _size_dict(slide.tile_size),
             "level_count": level_count,
+            "mpp": {"x": slide.mpp[0], "y": slide.mpp[1]},
+            "magnification": slide.magnification,
+            "barcode": slide.barcode,
             "levels": [
                 {
                     "level": level,
                     "dimensions": _size_dict(slide.level_size(level)),
+                    "downsample": slide.level_downsample(level),
                     "tile_grid": _grid_dict(slide.level_tile_count(level)),
                 }
                 for level in range(level_count)
@@ -234,6 +339,9 @@ def _load_library(
             "Sqray SDK service library could not be loaded. Ensure SDK "
             "dependencies are in the same directory or available through the "
             "platform dynamic-library search path. "
+            "On macOS, the current Sqray SDK package may require setting "
+            "DYLD_LIBRARY_PATH to include the SDK lib directory and the OpenMP "
+            "runtime directory before starting Python. "
             f"Original loader error: {exc}"
         ) from exc
 
@@ -354,6 +462,38 @@ def _configure_library(library: Any) -> None:
         ctypes.POINTER(ctypes.c_int32),
     ]
     library.sqrayslide_get_level_tile_count.restype = None
+    library.sqrayslide_get_level_downsample.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int32,
+    ]
+    library.sqrayslide_get_level_downsample.restype = ctypes.c_double
+    library.sqrayslide_get_best_level_for_downsample.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_double,
+    ]
+    library.sqrayslide_get_best_level_for_downsample.restype = ctypes.c_int32
+    library.sqrayslide_get_mpp.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.POINTER(ctypes.c_double),
+    ]
+    library.sqrayslide_get_mpp.restype = None
+    library.sqrayslide_get_magnification.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+    ]
+    library.sqrayslide_get_magnification.restype = None
+    library.sqrayslide_get_barcode.argtypes = [ctypes.c_void_p]
+    library.sqrayslide_get_barcode.restype = ctypes.c_char_p
+    library.sqrayslide_read_label_jpeg.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int32,
+        ctypes.POINTER(ctypes.c_int32),
+        ctypes.POINTER(ctypes.c_int32),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_int32),
+    ]
+    library.sqrayslide_read_label_jpeg.restype = ctypes.c_bool
     library.sqrayslide_read_tile_jpeg.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_void_p),
