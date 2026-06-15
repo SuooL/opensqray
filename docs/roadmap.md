@@ -1,5 +1,55 @@
 # OpenSqray Roadmap
 
+This roadmap distinguishes implemented capabilities, validated environments,
+and remaining product work. Do not treat diagnostic native parsing milestones
+as production SDPC pixel-read support; production SDPC image reads currently go
+through the optional Sqray SDK-backed `OpenSqraySlide` path.
+
+## Current Status
+
+### Implemented
+
+* Public-safe SDPC metadata parser and CLI.
+* Embedded JPEG scanning, associated-image candidates, and safe extraction.
+* Candidate tile-grid preview and `index-research` diagnostics.
+* `SDPCSlide` facade for native metadata, candidate JPEG bytes, and optional
+  SDK-backed low-level reads.
+* Pillow-backed optional image adapter.
+* SDK-backed `OpenSqraySlide` with OpenSlide-like core APIs:
+  `dimensions`, `level_count`, `level_dimensions`, `level_downsamples`,
+  `properties`, `associated_images`, `read_region()`, `get_thumbnail()`,
+  `get_best_level_for_downsample()`, and `read_tile_jpeg_bytes()`.
+* Batch patch helpers: `RegionRequest`, `iter_patch_requests()`,
+  `read_regions()`, and `OpenSqraySlide.read_regions()`.
+* Practical SDK runtime validator for real SDPC files.
+* Runtime packaging strategy docs and high-throughput patch extraction plan.
+
+### Validated
+
+* CI unit tests pass on Python 3.10, 3.11, and 3.12.
+* macOS Apple Silicon was locally validated with the official SDK runtime and
+  public `20220514_145829_0.sdpc` sample.
+* Linux x86_64 was validated on Ubuntu with source synced from GitHub `dev`,
+  the official Linux SDK runtime, and public `20220514_145829_0.sdpc` sample.
+  The validator passed with `errors=[]`, repeated-read consistency, parallel
+  consistency, and exit code `0`.
+
+### Not Yet Validated
+
+* Windows x86_64 real SDK runtime validation.
+* Linux arm64 real SDK runtime validation.
+* macOS Intel real SDK runtime validation, pending a vendor-supported x86_64 or
+  universal runtime.
+* Private runtime wheels or a native shim package.
+
+### Deliberately Not Claimed
+
+* Full native SDPC tile-directory parsing.
+* Native `SDPCSlide.read_region()` without the SDK.
+* Exact full OpenSlide API parity, including OpenSlide error-latching,
+  DeepZoom helpers, ICC/color-management parity, and multi-channel/focal-plane
+  APIs.
+
 ## Phase 1: Public Hygiene and Metadata MVP
 
 * Exclude internal SDKs and local slide samples from git.
@@ -132,7 +182,7 @@ private runtime package without vendoring binaries in the public repo, practical
 runtime validation exists, and docs describe the cross-platform packaging,
 validation, and throughput strategy.
 
-## Remaining Development Plan
+## Completed Research Milestones
 
 ### M9: Length-Table Reconstruction Diagnostics
 
@@ -148,6 +198,9 @@ validation, and throughput strategy.
 M9 is complete when the v3+ diagnostic contract exposes length reconstruction
 evidence, tests cover reconstruction and mismatch cases, and local smoke confirms
 the observation without committing sample data.
+
+Status: complete for the diagnostic contract. The current schema is
+`opensqray.sdpc.index_research.v4`, with synthetic positive/negative tests.
 
 ### M10: Formal Tile Directory Candidate Research
 
@@ -168,6 +221,12 @@ the observation without committing sample data.
 M10 is complete when OpenSqray can name the most plausible directory/table
 segments and explain what is still unknown without claiming a full parser.
 
+Status: partially complete as public-safe diagnostics. OpenSqray reports the
+most plausible length-table evidence and limitations, but it does not yet
+promote those diagnostics to a parsed native tile directory.
+
+## Remaining Development Plan
+
 ### M11: Confirmed Native Tile Map Prototype
 
 * Build an experimental tile-map object only after directory/table evidence
@@ -178,6 +237,11 @@ segments and explain what is still unknown without claiming a full parser.
   invalid/mismatched tables.
 * Keep the existing heuristic row-major tile preview as a fallback diagnostic,
   clearly separated from any parsed table.
+* Validate against at least two real SDPC samples:
+  * public `20220514_145829_0.sdpc`
+  * ignored internal `N067102_8.sdpc` or another large local slide
+* Fail closed when table evidence is incomplete, contradictory, or only
+  preview-limited.
 
 M11 is complete when native parsed/experimental tile maps can be produced for
 validated samples while failing closed when table evidence is incomplete or
@@ -193,20 +257,70 @@ contradictory.
   dependency paths.
 * Keep color correction out of the first region-read implementation unless a
   public-safe, testable correction path is identified.
+* Keep SDK-backed `OpenSqraySlide` as the production read path until native
+  assembly matches the same coordinate and image-size expectations.
 
 M12 is complete when native `SDPCSlide.read_region()` works from a confirmed tile
 map, has focused tests, and no longer depends on heuristic tile order.
 
-### M13: Packaging, Release, and Integrations
+### M13: Cross-Platform Runtime Validation
+
+* Run the practical SDK validator on Windows x86_64 using the official SDK
+  `bin/` layout.
+* Run the practical SDK validator on Linux arm64 using the official SDK `lib/`
+  layout.
+* Run macOS Intel validation only when a matching vendor runtime exists.
+* Store validation summaries outside the public repository or in sanitized
+  release notes; do not commit SDK binaries or full slide data.
+* Keep source sync for remote validation through GitHub branches and PRs.
+  `data/` and `sqrayslide_20251128_x64/` remain local ignored assets.
+
+M13 is complete when the validation matrix has real pass/fail evidence for
+every supported platform instead of design-only claims.
+
+### M14: Private Runtime Packaging and Native Shim
 
 * Decide repository license.
 * Build private platform runtime wheels only if SDK redistribution terms allow
   it.
 * Consider a thin native shim after the Python wrapper API stabilizes.
+* Package only the minimal runtime dependency set needed by the service
+  library, not the entire vendor SDK tree.
+* Run the practical validator against every runtime wheel or shim artifact.
+
+M14 is complete when private runtime artifacts can be installed without manual
+SDK path setup and pass the same real-SDPC validation checks.
+
+### M15: OpenSlide Parity Extensions
+
+* Decide which OpenSlide compatibility gaps are worth implementing for SDPC:
+  error-latching semantics, DeepZoom helpers, ICC/color management, and
+  optional multi-channel/focal-plane APIs.
+* Add only APIs with clear semantics on SDPC and tests that can run without
+  publishing proprietary data.
+* Keep non-SDPC formats delegated to OpenSlide.
+
+M15 is complete when OpenSqray either implements or explicitly declines each
+major OpenSlide parity gap with documented reasoning.
+
+### M16: Release and Integrations
+
 * Publish package artifacts if desired.
 * Add examples for downstream pathology and medical AI workflows.
 * Consider a plugin adapter for viewers after core parsing is stable.
 
-M13 is complete when `dev` is intentionally promoted to `main`, a SemVer tag and
+M16 is complete when `dev` is intentionally promoted to `main`, a SemVer tag and
 GitHub Release are created, and release notes clearly state SDPC support
 boundaries.
+
+## Execution Order
+
+1. M13: complete real cross-platform SDK validation first. This protects the
+   current usable product path.
+2. M14: build private runtime packaging only after the validation matrix is
+   stable enough to catch packaging regressions.
+3. M15: fill OpenSlide parity gaps according to real downstream demand.
+4. M11-M12: continue native SDPC tile-map and region-read research in parallel,
+   but do not block SDK-backed production use on full native parsing.
+5. M16: promote releases from `dev` to `main` only when the current milestone
+   has fresh validation evidence.

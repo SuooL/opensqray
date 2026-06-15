@@ -63,13 +63,13 @@ can be compared without committing slide data or image artifacts.
 Each supported platform should run the same validator on the same public or
 internal validation slide set:
 
-| Platform | Runtime source | Required status |
-| --- | --- | --- |
-| Windows x86_64 | SDK `bin/` or private runtime wheel | `status="passed"` |
-| Linux x86_64 | SDK `lib/` or private runtime wheel | `status="passed"` |
-| Linux arm64 | SDK `lib/` or private runtime wheel | `status="passed"` |
-| macOS Apple Silicon | SDK `lib/` or private runtime wheel | `status="passed"` |
-| macOS Intel | vendor-provided matching runtime | `status="passed"` when a runtime exists |
+| Platform | Runtime source | Required status | Current evidence |
+| --- | --- | --- | --- |
+| Windows x86_64 | SDK `bin/` or private runtime wheel | `status="passed"` | Not yet validated |
+| Linux x86_64 | SDK `lib/` or private runtime wheel | `status="passed"` | Passed on Ubuntu with GitHub-synced `dev`, public `20220514_145829_0.sdpc`, no `LD_LIBRARY_PATH`, validator exit `0` |
+| Linux arm64 | SDK `lib/` or private runtime wheel | `status="passed"` | Not yet validated |
+| macOS Apple Silicon | SDK `lib/` or private runtime wheel | `status="passed"` | Passed locally with official SDK runtime and public `20220514_145829_0.sdpc` |
+| macOS Intel | vendor-provided matching runtime | `status="passed"` when a runtime exists | Not yet validated; requires matching vendor runtime |
 
 macOS Intel cannot be validated from an Apple Silicon-only SDK binary. It needs
 a vendor-supported x86_64 or universal runtime.

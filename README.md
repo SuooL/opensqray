@@ -292,14 +292,18 @@ opensqray.sdpc.index_research.v4
 - [x] 项目骨架、CLI、synthetic fixture 测试。
 - [x] SDPC metadata parser 与版本化 JSON 输出。
 - [x] associated image 候选发现与导出。
-- [x] tile-grid 候选与 index-research 诊断。
+- [x] tile-grid 候选、length-table reconstruction 与 index-research v4 诊断。
 - [x] `SDPCSlide` facade、Pillow 解码适配、SDK backend MVP。
 - [x] SDK-backed `OpenSqraySlide` compatibility layer：`read_region()`、`get_thumbnail()`、associated images、level metadata。
 - [x] SDK-backed 批量 patch 读取 helper 与并行 worker 模型。
-- [x] 私有 SDK runtime 打包策略与大规模 patch 性能计划文档。
-- [ ] 更完整的 SDPC tile directory 映射与跨样本验证。
-- [ ] OpenSlide error-latching、DeepZoom helper、ICC/color correction。
-- [ ] 平台 runtime wheel / native shim 的内部构建流水线。
+- [x] 私有 SDK runtime 打包策略、大规模 patch 性能计划与实际 runtime validator。
+- [x] macOS Apple Silicon 与 Linux x86_64 真实 SDK + 公开 SDPC 样本验证。
+- [ ] Windows x86_64、Linux arm64、macOS Intel 的真实 runtime 验证。
+- [ ] confirmed native tile map 与 native `read_region()`，前提是 SDPC tile directory 证据足够。
+- [ ] OpenSlide error-latching、DeepZoom helper、ICC/color correction 等 parity 扩展。
+- [ ] 私有平台 runtime wheel / native shim 的内部构建与验证流水线。
+
+完整路线图见 [OpenSqray Roadmap](docs/roadmap.md)。当前最优先的剩余工作不是继续扩大公开 parser 的猜测范围，而是补齐跨平台 SDK runtime 验证与私有 runtime 打包；native SDPC region assembly 会继续作为研究线推进，直到 tile directory 证据足够自洽。
 
 ## 开发
 
