@@ -189,6 +189,22 @@ the runtime package root. It copies only selected runtime libraries into the
 external output directory. Do not commit the staged output, SDK binaries, or the
 manifest if it contains private local paths.
 
+To build an installable private wheel from the staged root:
+
+```bash
+python3 tools/build_sdk_runtime_wheel.py /path/to/opensqray_sdk_runtime \
+  /path/to/private-dist \
+  --platform-tag linux-x86_64 \
+  --version 0.1.0+internal
+```
+
+The wheel builder uses the standard wheel ZIP layout and writes `RECORD` hashes
+without requiring the `build` or `wheel` packages. It packages one platform tag
+at a time and defaults to excluding `opensqray-sdk-runtime-manifest.json`
+because the staging manifest can contain private local source paths. Use
+`--include-manifest` only for private artifact pipelines where that is
+acceptable.
+
 ## Wrapper `.so` / Native Shim Option
 
 A thin native shim such as `libopensqray_sdk` is a reasonable later milestone.

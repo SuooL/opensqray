@@ -32,9 +32,12 @@ from .index_research import (
     scan_sdpc_index_research,
 )
 from .runtime_package import (
+    DEFAULT_RUNTIME_WHEEL_PACKAGE_NAME,
     RUNTIME_PACKAGE_CHECK_SCHEMA_VERSION,
     RUNTIME_PACKAGE_MANIFEST_NAME,
     RUNTIME_PACKAGE_STAGE_SCHEMA_VERSION,
+    RUNTIME_WHEEL_BUILD_SCHEMA_VERSION,
+    build_runtime_wheel,
     check_runtime_package_layout,
     stage_runtime_package_layout,
 )
@@ -57,6 +60,7 @@ from .slide import SDPCSlide
 
 __all__ = [
     "ImageDecodeUnavailable",
+    "DEFAULT_RUNTIME_WHEEL_PACKAGE_NAME",
     "OPENSQRAY_SDK_VALIDATION_SCHEMA_VERSION",
     "OpenSqraySlide",
     "PROPERTY_NAME_BOUNDS_HEIGHT",
@@ -71,6 +75,7 @@ __all__ = [
     "RUNTIME_PACKAGE_CHECK_SCHEMA_VERSION",
     "RUNTIME_PACKAGE_MANIFEST_NAME",
     "RUNTIME_PACKAGE_STAGE_SCHEMA_VERSION",
+    "RUNTIME_WHEEL_BUILD_SCHEMA_VERSION",
     "SDPC_INDEX_RESEARCH_SCHEMA_VERSION",
     "SDPC_FIELD_CONFIDENCE",
     "SDPC_METADATA_SCHEMA_VERSION",
@@ -82,6 +87,7 @@ __all__ = [
     "SqraySDKUnavailable",
     "RegionRequest",
     "RegionResult",
+    "build_runtime_wheel",
     "check_runtime_package_layout",
     "decode_jpeg_bytes",
     "image_from_bgra_bytes",

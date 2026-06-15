@@ -40,6 +40,15 @@ At runtime, point OpenSqray at the staged root:
 export OPENSQRAY_SDK_RUNTIME_ROOT=/path/to/opensqray_sdk_runtime
 ```
 
+To build a private wheel from the staged root:
+
+```bash
+python3 tools/build_sdk_runtime_wheel.py /path/to/opensqray_sdk_runtime \
+  /path/to/private-dist \
+  --platform-tag linux-x86_64 \
+  --version 0.1.0+internal
+```
+
 Before building or publishing an internal runtime wheel, run:
 
 ```bash
