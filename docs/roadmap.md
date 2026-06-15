@@ -88,9 +88,49 @@ M6 is complete when `opensqray index-research` reports candidate evidence with a
 versioned diagnostic contract, synthetic tests cover positive and negative
 cases, and local sample smoke can run without committing data.
 
+## Phase 7: SDK-Backed OpenSlide Compatibility
+
+* Add `OpenSqraySlide` as the practical SDPC pixel-reading class backed by a
+  locally configured official Sqray SDK runtime.
+* Expose OpenSlide-like `dimensions`, `level_count`, `level_dimensions`,
+  `level_downsamples`, `properties`, `associated_images`, `read_region()`,
+  `get_thumbnail()`, and `get_best_level_for_downsample()`.
+* Keep OpenSlide-style downsample semantics in the compatibility layer even
+  when raw SDK scale values use inverse or vendor-specific conventions.
+* Keep native parsing as metadata / format-research support rather than a
+  production SDPC `read_region()` path.
+* Validate real SDK reads against ignored local SDPC samples without committing
+  SDK binaries or full slide data.
+
+M7 is complete when `OpenSqraySlide` can read real SDPC regions and thumbnails
+through the SDK backend, CI covers the wrapper with fake SDK tests, and README
+shows the SDK-backed path as the production SDPC pixel-read path.
+
+## Phase 8: Runtime Packaging and Batch Patch Reads
+
+* Add runtime-loader support for explicit SDK library directories, SDK roots,
+  optional private runtime packages, and environment variables.
+* Handle platform-specific SDK layouts:
+  * Windows service DLLs under `bin/`
+  * Linux versioned shared libraries such as `.so.17`
+  * macOS dylib preload behavior and documented `DYLD_LIBRARY_PATH` caveats
+* Add batch patch helpers:
+  * `RegionRequest`
+  * `iter_patch_requests()`
+  * `read_regions()`
+  * `OpenSqraySlide.read_regions()`
+* Use one slide handle per worker for parallel reads until the vendor SDK
+  documents shared-handle thread safety.
+* Document private SDK runtime wheel strategy and large-scale patch extraction
+  guidance.
+
+M8 is complete when batch patch APIs have unit tests, the loader can discover a
+private runtime package without vendoring binaries in the public repo, and docs
+describe the cross-platform packaging and throughput strategy.
+
 ## Remaining Development Plan
 
-### M8: Length-Table Reconstruction Diagnostics
+### M9: Length-Table Reconstruction Diagnostics
 
 * Extend `index-research` so length-table candidates report whether cumulative
   byte lengths reproduce observed preview JPEG offsets and end offsets.
@@ -101,11 +141,11 @@ cases, and local sample smoke can run without committing data.
   * non-adjacent JPEG records do not get over-claimed
 * Validate against ignored local samples, especially `N067102_8.sdpc`.
 
-M8 is complete when the v3+ diagnostic contract exposes length reconstruction
+M9 is complete when the v3+ diagnostic contract exposes length reconstruction
 evidence, tests cover reconstruction and mismatch cases, and local smoke confirms
 the observation without committing sample data.
 
-### M9: Formal Tile Directory Candidate Research
+### M10: Formal Tile Directory Candidate Research
 
 * Extend length-table diagnostics so the byte extent from a candidate table to
   the current non-JPEG window boundary is compared with expected pyramid-level
@@ -121,16 +161,11 @@ the observation without committing sample data.
 * Write a public-safe research note describing observed structures and negative
   findings.
 
-M9 is complete when OpenSqray can name the most plausible directory/table
+M10 is complete when OpenSqray can name the most plausible directory/table
 segments and explain what is still unknown without claiming a full parser.
 
-### M10: Confirmed Tile Map Prototype
+### M11: Confirmed Native Tile Map Prototype
 
-* Add an optional Sqray SDK backend so licensed local SDK runtimes can provide
-  reliable SDPC tile JPEG and BGRA region reads without vendoring proprietary
-  binaries in the public repository.
-* Expose SDK-backed tile reads through `SDPCSlide(..., backend="sdk")` and a
-  CLI tile extraction command.
 * Build an experimental tile-map object only after directory/table evidence
   links JPEG byte ranges to level and tile matrix coordinates.
 * Cross-check expected level grids, candidate table lengths, reconstructed
@@ -140,14 +175,12 @@ segments and explain what is still unknown without claiming a full parser.
 * Keep the existing heuristic row-major tile preview as a fallback diagnostic,
   clearly separated from any parsed table.
 
-M10 is complete when SDK-backed tile access is usable from Python and CLI, and
-native parsed/experimental tile maps can be produced for validated samples while
-failing closed when table evidence is incomplete or contradictory.
+M11 is complete when native parsed/experimental tile maps can be produced for
+validated samples while failing closed when table evidence is incomplete or
+contradictory.
 
-### M11: Pixel Access and Region Reads
+### M12: Native Pixel Access and Region Assembly
 
-* For SDK-backed slides, delegate region reads to the official SDK and expose
-  raw BGRA bytes plus optional Pillow RGBA conversion.
 * Use parsed tile maps and optional image decoding to assemble `read_region`.
 * Match OpenSlide-like top-left coordinate conventions where practical.
 * Handle edge padding, level selection, bounds, and missing-tile behavior
@@ -157,16 +190,19 @@ failing closed when table evidence is incomplete or contradictory.
 * Keep color correction out of the first region-read implementation unless a
   public-safe, testable correction path is identified.
 
-M11 is complete when `SDPCSlide.read_region()` works from a confirmed tile map,
-has focused tests, and no longer depends on heuristic tile order.
+M12 is complete when native `SDPCSlide.read_region()` works from a confirmed tile
+map, has focused tests, and no longer depends on heuristic tile order.
 
-### M12: Packaging, Release, and Integrations
+### M13: Packaging, Release, and Integrations
 
 * Decide repository license.
+* Build private platform runtime wheels only if SDK redistribution terms allow
+  it.
+* Consider a thin native shim after the Python wrapper API stabilizes.
 * Publish package artifacts if desired.
 * Add examples for downstream pathology and medical AI workflows.
 * Consider a plugin adapter for viewers after core parsing is stable.
 
-M12 is complete when `dev` is intentionally promoted to `main`, a SemVer tag and
+M13 is complete when `dev` is intentionally promoted to `main`, a SemVer tag and
 GitHub Release are created, and release notes clearly state SDPC support
 boundaries.

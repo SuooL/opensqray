@@ -1,5 +1,11 @@
 """OpenSqray public APIs."""
 
+from .batch import (
+    RegionRequest,
+    iter_patch_requests,
+    read_regions,
+    recommended_worker_count,
+)
 from .compat import (
     OpenSqraySlide,
     is_sdpc,
@@ -38,12 +44,16 @@ __all__ = [
     "SqraySDKError",
     "SqraySDKSlide",
     "SqraySDKUnavailable",
+    "RegionRequest",
     "decode_jpeg_bytes",
     "image_from_bgra_bytes",
     "is_sdpc",
+    "iter_patch_requests",
     "extract_sdpc_associated_images",
     "open_slide",
     "read_sdpc",
     "read_sdpc_byte_range",
+    "read_regions",
+    "recommended_worker_count",
     "scan_sdpc_index_research",
 ]

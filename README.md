@@ -19,6 +19,7 @@ OpenSqray 是一个面向全切片病理图像（Whole Slide Image, WSI）的 Py
 - Associated image 候选：可列出和导出 label/macro 等候选 JPEG 资源。
 - Tile index 研究工具：提供 row-major 候选 tile 映射和 index-table 诊断输出。
 - `OpenSqraySlide`：SDK-backed OpenSlide-like 兼容类，支持 SDPC 上的 `read_region()`、`get_thumbnail()`、`associated_images`、level metadata 和 properties。
+- 批量 patch 读取：`RegionRequest`、`iter_patch_requests()` 和 `read_regions()` 支持显式 worker 并行，每个 worker 使用独立 SDK slide handle。
 - 研究型 `SDPCSlide` facade：提供 metadata、candidate JPEG byte、SDK tile/region 低层接口。
 - 可选 Pillow 解码：安装 `opensqray[image]` 后可将候选 JPEG 或 SDK BGRA region 转成图像对象。
 - 可选 Sqray SDK 后端：在用户本地具备合法 SDK runtime 时，提供更可靠的 SDPC tile JPEG 与 region 读取。
@@ -90,6 +91,8 @@ export DYLD_LIBRARY_PATH="$OPENSQRAY_SDK_LIB_DIR:/path/to/libomp/lib:${DYLD_LIBR
 ```
 
 OpenSqray 不随仓库分发、复制或再打包任何专有 SDK 二进制文件。
+
+私有部署时的 SDK runtime wheel / native library 打包建议见 [SDK Runtime and Packaging Strategy](docs/sdk-runtime-packaging.md)。大规模 patch 处理建议见 [High-Throughput Patch Extraction Plan](docs/performance-plan.md)。
 
 ## 快速开始
 
@@ -179,6 +182,23 @@ with open_slide("path/to/slide.sdpc") as slide:
     region = slide.read_region((0, 0), 0, (512, 512))
 ```
 
+批量读取 patch：
+
+```python
+from opensqray import OpenSqraySlide, iter_patch_requests
+
+with OpenSqraySlide("path/to/slide.sdpc") as slide:
+    requests = iter_patch_requests(
+        slide.dimensions,
+        patch_size=(512, 512),
+        stride=(512, 512),
+        level=0,
+    )
+    patches = slide.read_regions(requests, workers=4)
+```
+
+`read_regions()` 的并行路径会为每个 worker 打开独立 SDK handle，避免在 vendor SDK 线程安全语义尚未公开时共享同一个 handle。处理上万张切片时，建议外层按 slide 做进程级并行，内层每张 slide 使用少量 workers。
+
 原生 SDPC 元数据与候选 JPEG：
 
 ```python
@@ -232,6 +252,7 @@ OpenSqray 当前有两个 SDPC 路径：
 | `read_region()` | 抛出 `NotImplementedError` | 安装 Pillow 后支持 |
 | `get_thumbnail()` | 尚未实现 | 支持 |
 | `get_best_level_for_downsample()` | 尚未实现 | 支持 OpenSlide-style downsample 选择 |
+| 批量 patch 读取 | 尚未实现 | 支持 `read_regions()` / `iter_patch_requests()` |
 | color correction / ICC | 尚未实现 | SDK 有接口，尚未暴露为 OpenSlide ICC 语义 |
 | fluorescence / channels / focal planes | 尚未实现 | 尚未封装 |
 | 完整 OpenSlide API 兼容 | 尚未达到 | 核心读图 API 可用；error-latching、DeepZoom helper、ICC 等仍在路线图 |
@@ -262,9 +283,11 @@ opensqray.sdpc.index_research.v4
 - [x] tile-grid 候选与 index-research 诊断。
 - [x] `SDPCSlide` facade、Pillow 解码适配、SDK backend MVP。
 - [x] SDK-backed `OpenSqraySlide` compatibility layer：`read_region()`、`get_thumbnail()`、associated images、level metadata。
+- [x] SDK-backed 批量 patch 读取 helper 与并行 worker 模型。
+- [x] 私有 SDK runtime 打包策略与大规模 patch 性能计划文档。
 - [ ] 更完整的 SDPC tile directory 映射与跨样本验证。
 - [ ] OpenSlide error-latching、DeepZoom helper、ICC/color correction。
-- [ ] 私有部署场景下的 SDK runtime 打包策略文档。
+- [ ] 平台 runtime wheel / native shim 的内部构建流水线。
 
 ## 开发
 

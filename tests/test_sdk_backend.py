@@ -9,6 +9,9 @@ from unittest.mock import patch
 from opensqray.sdk_backend import (
     SqraySDKSlide,
     SqraySDKUnavailable,
+    _dynamic_libraries,
+    _platform_runtime_tag,
+    _resolve_lib_dir,
     inspect_sqray_sdk_slide,
 )
 
@@ -128,6 +131,49 @@ class SqraySDKBackendTests(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaisesRegex(SqraySDKUnavailable, "not configured"):
                 SqraySDKSlide("sample.sdpc")
+
+    def test_resolves_windows_sdk_bin_directory_from_sdk_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+
+            with patch("opensqray.sdk_backend.platform.system", return_value="Windows"):
+                resolved = _resolve_lib_dir(sdk_dir=root, lib_dir=None)
+
+        self.assertEqual(resolved, bin_dir)
+
+    def test_resolves_optional_packaged_runtime_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_root = Path(tmp_dir) / "runtime"
+            runtime_lib = runtime_root / _platform_runtime_tag() / "lib"
+            runtime_lib.mkdir(parents=True)
+
+            with patch.dict("os.environ", {}, clear=True), patch(
+                "opensqray.sdk_backend.importlib.util.find_spec",
+                return_value=object(),
+            ), patch(
+                "opensqray.sdk_backend.importlib.resources.files",
+                return_value=runtime_root,
+            ):
+                resolved = _resolve_lib_dir(sdk_dir=None, lib_dir=None)
+
+        self.assertEqual(resolved, runtime_lib)
+
+    def test_detects_versioned_linux_shared_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lib_dir = Path(tmp_dir)
+            plain = lib_dir / "libplain.so"
+            versioned = lib_dir / "libplain.so.17"
+            other = lib_dir / "plain.txt"
+            plain.touch()
+            versioned.touch()
+            other.touch()
+
+            with patch("opensqray.sdk_backend.platform.system", return_value="Linux"):
+                libraries = _dynamic_libraries(lib_dir)
+
+        self.assertEqual(libraries, [plain, versioned])
 
     def test_reads_sdk_geometry_tile_jpeg_and_region_bytes(self) -> None:
         fake_library = FakeSqrayLibrary()

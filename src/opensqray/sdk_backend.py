@@ -7,6 +7,8 @@ public package does not vendor or redistribute proprietary SDK binaries.
 from __future__ import annotations
 
 import ctypes
+import importlib.resources
+import importlib.util
 import os
 from pathlib import Path
 import platform
@@ -17,12 +19,16 @@ from typing import Any
 OPENSQRAY_SDK_DIR_ENV = "OPENSQRAY_SDK_DIR"
 OPENSQRAY_SDK_LIB_DIR_ENV = "OPENSQRAY_SDK_LIB_DIR"
 OPENSQRAY_SDK_EXTRA_LIB_DIRS_ENV = "OPENSQRAY_SDK_EXTRA_LIB_DIRS"
+OPENSQRAY_SDK_RUNTIME_PACKAGE_ENV = "OPENSQRAY_SDK_RUNTIME_PACKAGE"
+DEFAULT_SDK_RUNTIME_PACKAGE = "opensqray_sdk_runtime"
 
 SDK_ASSOCIATED_IMAGE_TYPES = {
     "label": 0,
     "thumbnail": 1,
     "macro": 2,
 }
+
+_WINDOWS_DLL_DIRECTORY_HANDLES: list[Any] = []
 
 
 class SqraySDKUnavailable(RuntimeError):
@@ -354,14 +360,16 @@ def _resolve_lib_dir(
     candidates: list[Path] = []
     if lib_dir is not None:
         candidates.append(Path(lib_dir))
+    if sdk_dir is not None:
+        candidates.extend(_sdk_root_library_dirs(Path(sdk_dir)))
+    candidates.extend(_packaged_runtime_lib_dirs())
+
     env_lib_dir = os.environ.get(OPENSQRAY_SDK_LIB_DIR_ENV)
     if env_lib_dir:
         candidates.append(Path(env_lib_dir))
-    if sdk_dir is not None:
-        candidates.append(Path(sdk_dir) / "lib")
     env_sdk_dir = os.environ.get(OPENSQRAY_SDK_DIR_ENV)
     if env_sdk_dir:
-        candidates.append(Path(env_sdk_dir) / "lib")
+        candidates.extend(_sdk_root_library_dirs(Path(env_sdk_dir)))
 
     for candidate in candidates:
         if candidate.is_dir():
@@ -375,8 +383,10 @@ def _resolve_lib_dir(
 
 
 def _preload_dependencies(lib_dir: Path) -> None:
+    _register_windows_dll_directory(lib_dir)
     for extra in _extra_lib_dirs():
         if extra.is_dir():
+            _register_windows_dll_directory(extra)
             for library in _dynamic_libraries(extra):
                 _try_preload(library)
     for library in _dynamic_libraries(lib_dir):
@@ -393,19 +403,37 @@ def _extra_lib_dirs() -> list[Path]:
 
 
 def _dynamic_libraries(lib_dir: Path) -> list[Path]:
-    suffixes = _dynamic_library_suffixes()
     return sorted(
         path
         for path in lib_dir.iterdir()
-        if path.is_file() and any(path.name.endswith(suffix) for suffix in suffixes)
+        if path.is_file() and _is_dynamic_library(path)
         and not _is_versioned_macos_dylib_alias(path)
     )
+
+
+def _is_dynamic_library(path: Path) -> bool:
+    system = platform.system()
+    if system == "Darwin":
+        return path.name.endswith(".dylib")
+    if system == "Windows":
+        return path.name.lower().endswith(".dll")
+    return path.name.endswith(".so") or ".so." in path.name
 
 
 def _is_versioned_macos_dylib_alias(path: Path) -> bool:
     if platform.system() != "Darwin":
         return False
     return bool(re.search(r"\.\d+(?:\.\d+)*\.dylib$", path.name))
+
+
+def _register_windows_dll_directory(path: Path) -> None:
+    if platform.system() != "Windows" or not hasattr(os, "add_dll_directory"):
+        return
+    try:
+        handle = os.add_dll_directory(str(path))
+    except OSError:
+        return
+    _WINDOWS_DLL_DIRECTORY_HANDLES.append(handle)
 
 
 def _try_preload(path: Path) -> None:
@@ -424,13 +452,56 @@ def _service_library_name() -> str:
     return "libsqrayslideservice.so"
 
 
-def _dynamic_library_suffixes() -> tuple[str, ...]:
+def _sdk_root_library_dirs(sdk_root: Path) -> list[Path]:
+    if platform.system() == "Windows":
+        return [sdk_root / "bin", sdk_root / "lib"]
+    return [sdk_root / "lib"]
+
+
+def _packaged_runtime_lib_dirs() -> list[Path]:
+    candidates: list[Path] = []
+    for package_name in _runtime_package_names():
+        if importlib.util.find_spec(package_name) is None:
+            continue
+        try:
+            package_root = importlib.resources.files(package_name)
+        except (ModuleNotFoundError, ValueError):
+            continue
+        root = Path(str(package_root))
+        platform_tag = _platform_runtime_tag()
+        if platform.system() == "Windows":
+            candidates.append(root / platform_tag / "bin")
+        candidates.append(root / platform_tag / "lib")
+        if platform.system() == "Windows":
+            candidates.append(root / "bin")
+        candidates.append(root / "lib")
+    return candidates
+
+
+def _runtime_package_names() -> tuple[str, ...]:
+    value = os.environ.get(OPENSQRAY_SDK_RUNTIME_PACKAGE_ENV)
+    if value:
+        return tuple(item for item in value.split(os.pathsep) if item)
+    return (DEFAULT_SDK_RUNTIME_PACKAGE,)
+
+
+def _platform_runtime_tag() -> str:
     system = platform.system()
+    machine = platform.machine().lower()
+    if machine in {"amd64", "x86_64"}:
+        arch = "x86_64"
+    elif machine in {"arm64", "aarch64"}:
+        arch = "arm64"
+    else:
+        arch = machine or "unknown"
+
     if system == "Darwin":
-        return (".dylib",)
+        return f"macos-{arch}"
     if system == "Windows":
-        return (".dll",)
-    return (".so",)
+        return f"windows-{arch}"
+    if system == "Linux":
+        return f"linux-{arch}"
+    return f"{system.lower() or 'unknown'}-{arch}"
 
 
 def _configure_library(library: Any) -> None:
